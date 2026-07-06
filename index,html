@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Online Shop</title>
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+<div class="app-layout">
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">ONLINE<span>.</span>SHOP</div>
+    <nav id="nav-menu">
+      <div class="nav-item activo" data-modulo="dashboard">📊 Dashboard</div>
+      <div class="nav-item" data-modulo="inventario">📦 Inventario</div>
+      <div class="nav-item" data-modulo="solicitudProveedor">📝 Solicitud a Proveedor</div>
+      <div class="nav-item" data-modulo="entrada">⬇️ Entrada de Mercancía</div>
+      <div class="nav-item" data-modulo="salida">⬆️ Ventas (Salida)</div>
+      <div class="nav-item" data-modulo="balance">💰 Balance</div>
+      <div class="nav-item" data-modulo="proveedores">🏭 Proveedores</div>
+    </nav>
+  </aside>
+
+  <!-- CONTENIDO PRINCIPAL -->
+  <main class="main-content">
+    <div class="main-header">
+      <h1 id="titulo-modulo">Dashboard</h1>
+    </div>
+    <div id="contenido-modulo">
+      <div class="loading">Cargando...</div>
+    </div>
+  </main>
+</div>
+
+<script src="js/api.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
