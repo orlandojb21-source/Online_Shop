@@ -223,23 +223,58 @@ async function renderProveedores(contenedor) {
 
     <div class="card">
       <table>
-        <thead><tr><th>N° Proveedor</th><th>Nombre</th><th>Teléfono</th></tr></thead>
+        <thead><tr><th>N° Proveedor</th><th>Nombre</th><th>Teléfono</th><th></th></tr></thead>
         <tbody>
           ${data.map(p => `
             <tr>
               <td>${p['N°Proveedor']}</td>
               <td>${p.Nombre}</td>
               <td>${p.Telefono ? `<a href="https://wa.me/${soloDigitos(p.Telefono)}" target="_blank" style="color:var(--color-rojo); text-decoration:none; font-weight:600;">📱 ${p.Telefono}</a>` : '—'}</td>
+              <td><button class="btn btn-secundario btn-editar-prov" data-id="${p.ID}" style="padding:6px 14px; font-size:13px;">Editar</button></td>
             </tr>
-          `).join('') || '<tr><td colspan="3">Sin proveedores aún</td></tr>'}
+          `).join('') || '<tr><td colspan="4">Sin proveedores aún</td></tr>'}
         </tbody>
       </table>
     </div>
   `;
 
   const form = document.getElementById('form-nuevo-proveedor');
-  document.getElementById('btn-nuevo-proveedor').addEventListener('click', () => form.classList.toggle('oculto'));
+  let editandoId = null;
+
+  document.getElementById('btn-nuevo-proveedor').addEventListener('click', () => {
+    editandoId = null;
+    document.getElementById('inp-nombre-prov').value = '';
+    document.getElementById('inp-num-prov').value = '';
+    document.getElementById('inp-cod-pais').value = '+507';
+    document.getElementById('inp-telefono').value = '';
+    document.querySelector('#form-nuevo-proveedor h3').textContent = 'Nuevo Proveedor';
+    document.getElementById('btn-guardar-proveedor').textContent = 'Guardar';
+    form.classList.toggle('oculto');
+  });
+
   document.getElementById('btn-cancelar-proveedor').addEventListener('click', () => form.classList.add('oculto'));
+
+  document.querySelectorAll('.btn-editar-prov').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.dataset.id;
+      const proveedor = data.find(p => p.ID === id);
+      if (!proveedor) return;
+
+      editandoId = id;
+      document.getElementById('inp-nombre-prov').value = proveedor.Nombre || '';
+      document.getElementById('inp-num-prov').value = proveedor['N°Proveedor'] || '';
+
+      // Separar código de país y número (asume formato "+507 6123-4567")
+      const partes = (proveedor.Telefono || '').split(' ');
+      document.getElementById('inp-cod-pais').value = partes[0] || '+507';
+      document.getElementById('inp-telefono').value = partes.slice(1).join(' ') || '';
+
+      document.querySelector('#form-nuevo-proveedor h3').textContent = 'Editar Proveedor';
+      document.getElementById('btn-guardar-proveedor').textContent = 'Guardar Cambios';
+      form.classList.remove('oculto');
+      form.scrollIntoView({ behavior: 'smooth' });
+    });
+  });
 
   document.getElementById('btn-guardar-proveedor').addEventListener('click', async () => {
     const nombre = document.getElementById('inp-nombre-prov').value.trim();
@@ -254,21 +289,24 @@ async function renderProveedores(contenedor) {
 
     const btn = document.getElementById('btn-guardar-proveedor');
     btn.disabled = true;
-    btn.textContent = 'Guardando...';
+    btn.textContent = editandoId ? 'Guardando cambios...' : 'Guardando...';
 
     const telefonoCompleto = telefono ? `${codPais} ${telefono}` : '';
-
-    const resultado = await Api.agregar('Proveedor', {
+    const fila = {
       Nombre: nombre,
       'N°Proveedor': numProveedor,
       Telefono: telefonoCompleto
-    });
+    };
+
+    const resultado = editandoId
+      ? await Api.actualizar('Proveedor', editandoId, fila)
+      : await Api.agregar('Proveedor', fila);
 
     if (resultado.ok) {
       renderProveedores(contenedor); // recargar tabla
     } else {
       btn.disabled = false;
-      btn.textContent = 'Guardar';
+      btn.textContent = editandoId ? 'Guardar Cambios' : 'Guardar';
     }
   });
 }
