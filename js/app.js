@@ -206,6 +206,14 @@ async function renderProveedores(contenedor) {
           <label>N° Proveedor</label>
           <input type="text" id="inp-num-prov" placeholder="Ej. PROV-001">
         </div>
+        <div class="form-group">
+          <label>Código de País</label>
+          <input type="text" id="inp-cod-pais" placeholder="Ej. +507" value="+507">
+        </div>
+        <div class="form-group">
+          <label>Teléfono</label>
+          <input type="text" id="inp-telefono" placeholder="Ej. 6123-4567">
+        </div>
       </div>
       <div style="display:flex; gap:10px; margin-top:8px;">
         <button class="btn btn-primary" id="btn-guardar-proveedor">Guardar</button>
@@ -215,14 +223,15 @@ async function renderProveedores(contenedor) {
 
     <div class="card">
       <table>
-        <thead><tr><th>N° Proveedor</th><th>Nombre</th></tr></thead>
+        <thead><tr><th>N° Proveedor</th><th>Nombre</th><th>Teléfono</th></tr></thead>
         <tbody>
           ${data.map(p => `
             <tr>
               <td>${p['N°Proveedor']}</td>
               <td>${p.Nombre}</td>
+              <td>${p.Telefono ? `<a href="https://wa.me/${soloDigitos(p.Telefono)}" target="_blank" style="color:var(--color-rojo); text-decoration:none; font-weight:600;">📱 ${p.Telefono}</a>` : '—'}</td>
             </tr>
-          `).join('') || '<tr><td colspan="2">Sin proveedores aún</td></tr>'}
+          `).join('') || '<tr><td colspan="3">Sin proveedores aún</td></tr>'}
         </tbody>
       </table>
     </div>
@@ -235,6 +244,8 @@ async function renderProveedores(contenedor) {
   document.getElementById('btn-guardar-proveedor').addEventListener('click', async () => {
     const nombre = document.getElementById('inp-nombre-prov').value.trim();
     const numProveedor = document.getElementById('inp-num-prov').value.trim();
+    const codPais = document.getElementById('inp-cod-pais').value.trim();
+    const telefono = document.getElementById('inp-telefono').value.trim();
 
     if (!nombre || !numProveedor) {
       alert('Nombre y N° Proveedor son obligatorios');
@@ -245,9 +256,12 @@ async function renderProveedores(contenedor) {
     btn.disabled = true;
     btn.textContent = 'Guardando...';
 
+    const telefonoCompleto = telefono ? `${codPais} ${telefono}` : '';
+
     const resultado = await Api.agregar('Proveedor', {
       Nombre: nombre,
-      'N°Proveedor': numProveedor
+      'N°Proveedor': numProveedor,
+      Telefono: telefonoCompleto
     });
 
     if (resultado.ok) {
@@ -257,6 +271,11 @@ async function renderProveedores(contenedor) {
       btn.textContent = 'Guardar';
     }
   });
+}
+
+// Deja solo dígitos de un teléfono (para armar el link de WhatsApp wa.me)
+function soloDigitos(texto) {
+  return String(texto).replace(/\D/g, '');
 }
 
 // Cargar dashboard al iniciar
