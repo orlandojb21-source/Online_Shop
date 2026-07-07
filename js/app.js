@@ -172,7 +172,189 @@ async function renderInventario(contenedor) {
 }
 
 async function renderSolicitudProveedor(contenedor) {
-  contenedor.innerHTML = `<div class="card">Módulo de Solicitud a Proveedor — construimos el formulario y tabla en el siguiente paso.</div>`;
+  const [resSolicitudes, resProveedores] = await Promise.all([
+    Api.obtener('SolicitudProveedor'),
+    Api.obtener('Proveedor')
+  ]);
+  const solicitudes = resSolicitudes.data || [];
+  const proveedores = resProveedores.data || [];
+
+  contenedor.innerHTML = `
+    <div style="display:flex; justify-content:flex-end; margin-bottom:16px;">
+      <button class="btn btn-primary" id="btn-nueva-solicitud">+ Nueva Solicitud</button>
+    </div>
+
+    <div class="card oculto" id="form-nueva-solicitud">
+      <h3 style="margin-bottom:16px;">Nueva Solicitud a Proveedor</h3>
+      <div style="display:grid; grid-template-columns: 1fr 1fr; gap:16px;">
+        <div class="form-group">
+          <label>Código de Producto</label>
+          <input type="text" id="sol-codigo" placeholder="Ej. CAM-001">
+        </div>
+        <div class="form-group">
+          <label>Descripción</label>
+          <input type="text" id="sol-descripcion" placeholder="Ej. Camisa Manga Larga">
+        </div>
+        <div class="form-group">
+          <label>Talla</label>
+          <input type="text" id="sol-talla" placeholder="Ej. M">
+        </div>
+        <div class="form-group">
+          <label>N° Lote</label>
+          <input type="text" id="sol-lote" placeholder="Ej. LOTE-JUL-01">
+        </div>
+        <div class="form-group">
+          <label>Cantidad</label>
+          <input type="number" id="sol-cantidad" placeholder="0">
+        </div>
+        <div class="form-group">
+          <label>Precio por Unidad</label>
+          <input type="number" step="0.01" id="sol-precio" placeholder="0.00">
+        </div>
+        <div class="form-group">
+          <label>Proveedor</label>
+          <select id="sol-proveedor">
+            <option value="">Selecciona un proveedor</option>
+            ${proveedores.map(p => `<option value="${p['N°Proveedor']}" data-nombre="${p.Nombre}">${p.Nombre}</option>`).join('')}
+          </select>
+        </div>
+        <div class="form-group">
+          <label>¿Ya pagado?</label>
+          <select id="sol-pagado">
+            <option value="No">No</option>
+            <option value="Sí">Sí</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Fecha de Solicitud</label>
+          <input type="date" id="sol-fecha">
+        </div>
+      </div>
+      <div style="display:flex; gap:10px; margin-top:8px;">
+        <button class="btn btn-primary" id="btn-guardar-solicitud">Guardar Solicitud</button>
+        <button class="btn btn-secundario" id="btn-cancelar-solicitud">Cancelar</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <table>
+        <thead><tr><th>Código</th><th>Descripción</th><th>Talla</th><th>Cant.</th><th>Total</th><th>Proveedor</th><th>Pagado</th><th>Estado</th><th></th></tr></thead>
+        <tbody>
+          ${solicitudes.map(s => `
+            <tr>
+              <td>${s.CodigoDeProducto}</td>
+              <td>${s.Descripcion}</td>
+              <td>${s.Talla}</td>
+              <td>${s.Cantidad}</td>
+              <td>$${Number(s.TotalDeCosto || 0).toFixed(2)}</td>
+              <td>${s.NombreDeProveedor}</td>
+              <td><span class="badge ${s.Pagado === 'Sí' ? 'badge-ok' : 'badge-pendiente'}">${s.Pagado}</span></td>
+              <td><span class="badge ${s.Estado === 'Recibido' ? 'badge-ok' : 'badge-alerta'}">${s.Estado}</span></td>
+              <td>${s.Estado !== 'Recibido' ? `<button class="btn btn-primary btn-entregado" data-id="${s.ID}" style="padding:6px 14px; font-size:13px;">Entregado</button>` : ''}</td>
+            </tr>
+          `).join('') || '<tr><td colspan="9">Sin solicitudes aún</td></tr>'}
+        </tbody>
+      </table>
+    </div>
+  `;
+
+  const form = document.getElementById('form-nueva-solicitud');
+  document.getElementById('sol-fecha').valueAsDate = new Date();
+
+  document.getElementById('btn-nueva-solicitud').addEventListener('click', () => form.classList.toggle('oculto'));
+  document.getElementById('btn-cancelar-solicitud').addEventListener('click', () => form.classList.add('oculto'));
+
+  document.getElementById('btn-guardar-solicitud').addEventListener('click', async () => {
+    const codigo = document.getElementById('sol-codigo').value.trim();
+    const descripcion = document.getElementById('sol-descripcion').value.trim();
+    const talla = document.getElementById('sol-talla').value.trim();
+    const lote = document.getElementById('sol-lote').value.trim();
+    const cantidad = Number(document.getElementById('sol-cantidad').value) || 0;
+    const precio = Number(document.getElementById('sol-precio').value) || 0;
+    const selectProv = document.getElementById('sol-proveedor');
+    const proveedor = selectProv.value;
+    const nombreProveedor = selectProv.selectedOptions[0]?.dataset.nombre || '';
+    const pagado = document.getElementById('sol-pagado').value;
+    const fecha = document.getElementById('sol-fecha').value;
+
+    if (!codigo || !descripcion || !talla || !cantidad || !proveedor) {
+      alert('Código, Descripción, Talla, Cantidad y Proveedor son obligatorios');
+      return;
+    }
+
+    const btn = document.getElementById('btn-guardar-solicitud');
+    btn.disabled = true;
+    btn.textContent = 'Guardando...';
+
+    const resultado = await Api.agregar('SolicitudProveedor', {
+      CodigoDeProducto: codigo,
+      Descripcion: descripcion,
+      Talla: talla,
+      PrecioUnidad: precio,
+      'N°Lote': lote,
+      Cantidad: cantidad,
+      TotalDeCosto: cantidad * precio,
+      Proveedor: proveedor,
+      NombreDeProveedor: nombreProveedor,
+      Pagado: pagado,
+      Estado: 'Pendiente',
+      Fecha: fecha
+    });
+
+    if (resultado.ok) {
+      renderSolicitudProveedor(contenedor);
+    } else {
+      btn.disabled = false;
+      btn.textContent = 'Guardar Solicitud';
+    }
+  });
+
+  // Botón "Entregado": convierte la solicitud en Entrada real y actualiza Inventario
+  document.querySelectorAll('.btn-entregado').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = btn.dataset.id;
+      const solicitud = solicitudes.find(s => s.ID === id);
+      if (!solicitud) return;
+
+      const numFactura = prompt('N° de Factura de Compra (viene con el envío):');
+      if (numFactura === null) return; // canceló
+
+      btn.disabled = true;
+      btn.textContent = 'Procesando...';
+
+      const hoy = new Date();
+      const fechaISO = hoy.toISOString().split('T')[0];
+      const mes = calcularMes(fechaISO);
+
+      const resultadoEntrada = await Api.registrarEntrada({
+        numFactura: numFactura,
+        mes: mes,
+        fecha: fechaISO,
+        codigo: solicitud.CodigoDeProducto,
+        descripcion: solicitud.Descripcion,
+        talla: solicitud.Talla,
+        lote: solicitud['N°Lote'],
+        proveedor: solicitud.NombreDeProveedor,
+        cantidad: Number(solicitud.Cantidad),
+        costoPorUnidad: Number(solicitud.PrecioUnidad)
+      });
+
+      if (resultadoEntrada.ok) {
+        await Api.actualizar('SolicitudProveedor', id, { Estado: 'Recibido' });
+        renderSolicitudProveedor(contenedor);
+      } else {
+        btn.disabled = false;
+        btn.textContent = 'Entregado';
+      }
+    });
+  });
+}
+
+// Calcula el nombre del mes en español a partir de una fecha (YYYY-MM-DD)
+function calcularMes(fechaStr) {
+  const meses = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  const fecha = new Date(fechaStr + 'T00:00:00');
+  return meses[fecha.getMonth()];
 }
 
 async function renderEntrada(contenedor) {
