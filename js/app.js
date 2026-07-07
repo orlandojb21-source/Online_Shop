@@ -175,12 +175,14 @@ async function renderInventario(contenedor) {
 let lineasSolicitud = [];
 
 async function renderSolicitudProveedor(contenedor) {
-  const [resSolicitudes, resProveedores] = await Promise.all([
+  const [resSolicitudes, resProveedores, resInventario] = await Promise.all([
     Api.obtener('SolicitudProveedor'),
-    Api.obtener('Proveedor')
+    Api.obtener('Proveedor'),
+    Api.obtener('Inventario')
   ]);
   const solicitudes = resSolicitudes.data || [];
   const proveedores = resProveedores.data || [];
+  const inventario = resInventario.data || [];
   lineasSolicitud = [];
 
   // Agrupar solicitudes por N°Solicitud para mostrarlas como una sola orden con varias líneas
@@ -224,12 +226,17 @@ async function renderSolicitudProveedor(contenedor) {
       </div>
 
       <h4 style="margin-bottom:10px; color:var(--color-gris-texto);">Productos de esta solicitud</h4>
-      <div style="display:grid; grid-template-columns: 1fr 1.5fr 0.7fr 1fr 0.7fr 0.8fr auto; gap:10px; margin-bottom:8px;">
-        <input type="text" id="linea-codigo" placeholder="Código">
-        <input type="text" id="linea-descripcion" placeholder="Descripción">
-        <input type="text" id="linea-talla" placeholder="Talla">
+      <p style="font-size:12.5px; color:var(--color-gris-texto); margin-bottom:10px;">Busca por código, descripción o talla — solo puedes agregar productos que ya existan en Inventario.</p>
+      <div style="display:grid; grid-template-columns: 2fr 1fr 1fr 0.8fr auto; gap:10px; margin-bottom:8px;">
+        <div>
+          <input type="text" id="linea-buscar" list="lista-inventario" placeholder="Buscar producto por código, descripción o talla...">
+          <datalist id="lista-inventario">
+            ${inventario.map(p => `<option value="${p.CodigoDeProducto} — ${p.Descripcion} (${p.Talla})">`).join('')}
+          </datalist>
+          <div id="linea-stock-info" style="font-size:12px; color:var(--color-gris-texto); margin-top:4px;"></div>
+        </div>
         <input type="text" id="linea-lote" placeholder="N° Lote">
-        <input type="number" id="linea-cantidad" placeholder="Cant.">
+        <input type="number" id="linea-cantidad" placeholder="Cantidad">
         <input type="number" step="0.01" id="linea-precio" placeholder="Precio/u">
         <button class="btn btn-secundario" id="btn-agregar-linea">+ Agregar</button>
       </div>
@@ -312,24 +319,56 @@ async function renderSolicitudProveedor(contenedor) {
     });
   }
 
+  // Muestra el stock actual del producto que coincide con lo que se está escribiendo/seleccionando
+  const inputBuscar = document.getElementById('linea-buscar');
+  const infoStock = document.getElementById('linea-stock-info');
+
+  function buscarProductoPorTexto(texto) {
+    // El texto viene del datalist como "CODIGO — Descripcion (Talla)"; extraemos el código antes de " — "
+    const codigoTexto = texto.split(' — ')[0].trim();
+    return inventario.find(p => p.CodigoDeProducto === codigoTexto);
+  }
+
+  inputBuscar.addEventListener('input', () => {
+    const producto = buscarProductoPorTexto(inputBuscar.value);
+    if (producto) {
+      infoStock.textContent = `Stock actual: ${producto.StockActual} unidades — ${producto.Descripcion}`;
+      infoStock.style.color = 'var(--color-gris-texto)';
+    } else {
+      infoStock.textContent = inputBuscar.value ? 'Producto no encontrado en Inventario' : '';
+      infoStock.style.color = inputBuscar.value ? 'var(--color-rojo)' : 'var(--color-gris-texto)';
+    }
+  });
+
   document.getElementById('btn-agregar-linea').addEventListener('click', () => {
-    const codigo = document.getElementById('linea-codigo').value.trim();
-    const descripcion = document.getElementById('linea-descripcion').value.trim();
-    const talla = document.getElementById('linea-talla').value.trim();
+    const producto = buscarProductoPorTexto(inputBuscar.value);
     const lote = document.getElementById('linea-lote').value.trim();
     const cantidad = Number(document.getElementById('linea-cantidad').value) || 0;
     const precio = Number(document.getElementById('linea-precio').value) || 0;
 
-    if (!codigo || !descripcion || !talla || !cantidad) {
-      alert('Código, Descripción, Talla y Cantidad son obligatorios para cada línea');
+    if (!producto) {
+      alert('Selecciona un producto válido de la lista de Inventario. Si el producto no existe, agrégalo primero en el módulo de Inventario (con stock 0).');
+      return;
+    }
+    if (!cantidad) {
+      alert('La cantidad es obligatoria');
       return;
     }
 
-    lineasSolicitud.push({ codigo, descripcion, talla, lote, cantidad, precio });
+    lineasSolicitud.push({
+      codigo: producto.CodigoDeProducto,
+      descripcion: producto.Descripcion,
+      talla: producto.Talla,
+      lote, cantidad, precio
+    });
     renderTablaLineas();
 
-    ['linea-codigo','linea-descripcion','linea-talla','linea-lote','linea-cantidad','linea-precio'].forEach(id => document.getElementById(id).value = '');
-    document.getElementById('linea-codigo').focus();
+    inputBuscar.value = '';
+    document.getElementById('linea-lote').value = '';
+    document.getElementById('linea-cantidad').value = '';
+    document.getElementById('linea-precio').value = '';
+    infoStock.textContent = '';
+    inputBuscar.focus();
   });
 
   document.getElementById('btn-guardar-solicitud').addEventListener('click', async () => {
