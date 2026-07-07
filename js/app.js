@@ -71,7 +71,8 @@ async function renderInventario(contenedor) {
   const res = await Api.obtener('Inventario');
   const data = res.data || [];
   contenedor.innerHTML = `
-    <div style="display:flex; justify-content:flex-end; margin-bottom:16px;">
+    <div style="display:flex; justify-content:space-between; gap:16px; margin-bottom:16px;">
+      <input type="text" id="inv-buscar" placeholder="🔎 Buscar por código, descripción o talla..." style="max-width:340px;">
       <button class="btn btn-primary" id="btn-nuevo-producto">+ Agregar Producto</button>
     </div>
 
@@ -112,24 +113,73 @@ async function renderInventario(contenedor) {
     <div class="card">
       <table>
         <thead><tr><th></th><th>Código</th><th>Descripción</th><th>Talla</th><th>Stock</th><th>Importe</th></tr></thead>
-        <tbody>
-          ${data.map(p => `
-            <tr>
-              <td><button class="btn-editar-prod" data-id="${p.ID}" title="Editar" style="background:none; border:none; cursor:pointer; font-size:16px;">✏️</button></td>
-              <td>${p.CodigoDeProducto}</td>
-              <td>${p.Descripcion}</td>
-              <td>${p.Talla}</td>
-              <td>${p.StockActual}${Number(p.StockActual) <= 5 ? ' <span class="badge badge-alerta">Bajo</span>' : ''}</td>
-              <td>$${Number(p.Importe || 0).toFixed(2)}</td>
-            </tr>
-          `).join('') || '<tr><td colspan="6">Sin productos aún</td></tr>'}
-        </tbody>
+        <tbody id="tbody-inventario"></tbody>
       </table>
+      <p id="inv-sin-resultados" class="oculto" style="color:var(--color-gris-texto); padding:12px 0 0;">Ningún producto coincide con la búsqueda.</p>
     </div>
   `;
 
   const form = document.getElementById('form-nuevo-producto');
   let editandoId = null;
+
+  // Dibuja las filas de la tabla a partir de una lista (completa o filtrada) y engancha el botón ✏️ de cada una
+  function renderFilasInventario(lista) {
+    const tbody = document.getElementById('tbody-inventario');
+    const sinResultados = document.getElementById('inv-sin-resultados');
+
+    if (lista.length === 0) {
+      tbody.innerHTML = data.length === 0 ? '<tr><td colspan="6">Sin productos aún</td></tr>' : '';
+      sinResultados.classList.toggle('oculto', data.length === 0);
+    } else {
+      sinResultados.classList.add('oculto');
+      tbody.innerHTML = lista.map(p => `
+        <tr>
+          <td><button class="btn-editar-prod" data-id="${p.ID}" title="Editar" style="background:none; border:none; cursor:pointer; font-size:16px;">✏️</button></td>
+          <td>${p.CodigoDeProducto}</td>
+          <td>${p.Descripcion}</td>
+          <td>${p.Talla}</td>
+          <td>${p.StockActual}${Number(p.StockActual) <= 5 ? ' <span class="badge badge-alerta">Bajo</span>' : ''}</td>
+          <td>$${Number(p.Importe || 0).toFixed(2)}</td>
+        </tr>
+      `).join('');
+    }
+
+    tbody.querySelectorAll('.btn-editar-prod').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.dataset.id;
+        const producto = data.find(p => p.ID === id);
+        if (!producto) return;
+
+        editandoId = id;
+        document.getElementById('inp-codigo').value = producto.CodigoDeProducto || '';
+        document.getElementById('inp-codigo').disabled = true; // el código no se edita para no romper referencias en Entrada/Salida
+        document.getElementById('inp-descripcion').value = producto.Descripcion || '';
+        document.getElementById('inp-talla').value = producto.Talla || '';
+        document.getElementById('inp-lote').value = producto['N°Lote'] || '';
+        document.getElementById('inp-stock').value = producto.StockActual || '';
+        document.getElementById('inp-costo').value = producto.CostoPromedio || '';
+
+        document.querySelector('#form-nuevo-producto h3').textContent = 'Editar Producto';
+        document.getElementById('btn-guardar-producto').textContent = 'Guardar Cambios';
+        form.classList.remove('oculto');
+        form.scrollIntoView({ behavior: 'smooth' });
+      });
+    });
+  }
+
+  renderFilasInventario(data);
+
+  // Filtro en vivo por código, descripción o talla
+  document.getElementById('inv-buscar').addEventListener('input', (e) => {
+    const q = e.target.value.trim().toLowerCase();
+    if (!q) { renderFilasInventario(data); return; }
+    const filtrada = data.filter(p =>
+      String(p.CodigoDeProducto || '').toLowerCase().includes(q) ||
+      String(p.Descripcion || '').toLowerCase().includes(q) ||
+      String(p.Talla || '').toLowerCase().includes(q)
+    );
+    renderFilasInventario(filtrada);
+  });
 
   document.getElementById('btn-nuevo-producto').addEventListener('click', () => {
     editandoId = null;
@@ -146,28 +196,6 @@ async function renderInventario(contenedor) {
   });
 
   document.getElementById('btn-cancelar-producto').addEventListener('click', () => form.classList.add('oculto'));
-
-  document.querySelectorAll('.btn-editar-prod').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const id = btn.dataset.id;
-      const producto = data.find(p => p.ID === id);
-      if (!producto) return;
-
-      editandoId = id;
-      document.getElementById('inp-codigo').value = producto.CodigoDeProducto || '';
-      document.getElementById('inp-codigo').disabled = true; // el código no se edita para no romper referencias en Entrada/Salida
-      document.getElementById('inp-descripcion').value = producto.Descripcion || '';
-      document.getElementById('inp-talla').value = producto.Talla || '';
-      document.getElementById('inp-lote').value = producto['N°Lote'] || '';
-      document.getElementById('inp-stock').value = producto.StockActual || '';
-      document.getElementById('inp-costo').value = producto.CostoPromedio || '';
-
-      document.querySelector('#form-nuevo-producto h3').textContent = 'Editar Producto';
-      document.getElementById('btn-guardar-producto').textContent = 'Guardar Cambios';
-      form.classList.remove('oculto');
-      form.scrollIntoView({ behavior: 'smooth' });
-    });
-  });
 
   document.getElementById('btn-guardar-producto').addEventListener('click', async () => {
     const codigo = document.getElementById('inp-codigo').value.trim();
