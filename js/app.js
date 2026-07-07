@@ -4,7 +4,6 @@ const titulos = {
   dashboard: 'Dashboard',
   inventario: 'Inventario',
   solicitudProveedor: 'Solicitud a Proveedor',
-  entrada: 'Entrada de Mercancía',
   salida: 'Ventas (Salida)',
   balance: 'Balance',
   proveedores: 'Proveedores'
@@ -28,7 +27,6 @@ async function cargarModulo(modulo) {
     case 'dashboard': return renderDashboard(contenedor);
     case 'inventario': return renderInventario(contenedor);
     case 'solicitudProveedor': return renderSolicitudProveedor(contenedor);
-    case 'entrada': return renderEntrada(contenedor);
     case 'salida': return renderSalida(contenedor);
     case 'balance': return renderBalance(contenedor);
     case 'proveedores': return renderProveedores(contenedor);
@@ -234,10 +232,9 @@ async function renderSolicitudProveedor(contenedor) {
   const inventario = resInventario.data || [];
   lineasSolicitud = [];
 
-  // Agrupar solicitudes por N°Solicitud — solo se muestran las que aún no han sido entregadas
-  const pendientes = solicitudes.filter(s => s.Estado !== 'Recibido');
+  // Agrupar solicitudes por N°Solicitud para mostrarlas como una sola orden con varias líneas
   const grupos = {};
-  pendientes.forEach(s => {
+  solicitudes.forEach(s => {
     const num = s['N°Solicitud'] || s.ID;
     if (!grupos[num]) grupos[num] = [];
     grupos[num].push(s);
@@ -300,8 +297,9 @@ async function renderSolicitudProveedor(contenedor) {
     </div>
 
     <div class="card">
-      ${Object.keys(grupos).length === 0 ? '<p>Sin solicitudes pendientes</p>' : Object.entries(grupos).map(([numSolicitud, lineas]) => {
+      ${Object.keys(grupos).length === 0 ? '<p>Sin solicitudes aún</p>' : Object.entries(grupos).map(([numSolicitud, lineas]) => {
         const primera = lineas[0];
+        const todoRecibido = lineas.every(l => l.Estado === 'Recibido');
         const idGrupo = 'grupo-' + numSolicitud.replace(/[^a-zA-Z0-9]/g, '');
         return `
           <div style="border:1px solid var(--color-borde); border-radius:var(--radio); margin-bottom:12px; overflow:hidden;">
@@ -310,16 +308,16 @@ async function renderSolicitudProveedor(contenedor) {
                 <strong>Solicitud ${numSolicitud}</strong>
                 <span style="color:var(--color-gris-texto); margin-left:10px;">${primera.NombreDeProveedor} · ${formatearFecha(primera.Fecha)}</span>
                 <span class="badge ${primera.Pagado === 'Sí' ? 'badge-ok' : 'badge-pendiente'}" style="margin-left:8px;">${primera.Pagado === 'Sí' ? 'Pagado' : 'No pagado'}</span>
-                <span class="badge badge-alerta" style="margin-left:6px;">Pendiente</span>
+                <span class="badge ${todoRecibido ? 'badge-ok' : 'badge-alerta'}" style="margin-left:6px;">${todoRecibido ? 'Recibido' : 'Pendiente'}</span>
               </div>
               <span style="color:var(--color-gris-texto); font-size:13px;">Ver detalle ▾</span>
             </div>
             <div id="${idGrupo}" class="oculto" style="padding:16px;">
               <div style="display:flex; justify-content:flex-end; margin-bottom:10px;">
-                <button class="btn btn-primary btn-entregado-grupo" data-num="${numSolicitud}" style="padding:6px 14px; font-size:13px;">Marcar todo como Entregado</button>
+                ${!todoRecibido ? `<button class="btn btn-primary btn-entregado-grupo" data-num="${numSolicitud}" style="padding:6px 14px; font-size:13px;">Marcar todo como Entregado</button>` : ''}
               </div>
               <table>
-                <thead><tr><th>Código</th><th>Descripción</th><th>Talla</th><th>Cant.</th><th>Total</th></tr></thead>
+                <thead><tr><th>Código</th><th>Descripción</th><th>Talla</th><th>Cant.</th><th>Total</th><th>Estado</th></tr></thead>
                 <tbody>
                   ${lineas.map(l => `
                     <tr>
@@ -328,6 +326,7 @@ async function renderSolicitudProveedor(contenedor) {
                       <td>${l.Talla}</td>
                       <td>${l.Cantidad}</td>
                       <td>$${Number(l.TotalDeCosto || 0).toFixed(2)}</td>
+                      <td><span class="badge ${l.Estado === 'Recibido' ? 'badge-ok' : 'badge-alerta'}">${l.Estado}</span></td>
                     </tr>
                   `).join('')}
                 </tbody>
@@ -504,8 +503,7 @@ async function renderSolicitudProveedor(contenedor) {
           costoPorUnidad: Number(linea.PrecioUnidad)
         });
         if (resultado.ok) {
-          // La solicitud ya se convirtió en Entrada real; se elimina de Solicitud a Proveedor
-          await Api.eliminar('SolicitudProveedor', linea.ID);
+          await Api.actualizar('SolicitudProveedor', linea.ID, { Estado: 'Recibido' });
         }
       }
 
@@ -532,51 +530,136 @@ function formatearFecha(valor) {
   return `${dia}/${mes}/${anio}`;
 }
 
-async function renderEntrada(contenedor) {
-  const res = await Api.obtener('Entrada');
-  const entradas = res.data || [];
+// Estado temporal de las líneas de producto mientras se arma una venta nueva
+let lineasVenta = [];
 
+async function renderSalida(contenedor) {
+  const [resSalidas, resClientes, resInventario] = await Promise.all([
+    Api.obtener('Salida'),
+    Api.obtener('Cliente'),
+    Api.obtener('Inventario')
+  ]);
+  const salidas = resSalidas.data || [];
+  const clientes = resClientes.data || [];
+  const inventario = resInventario.data || [];
+  lineasVenta = [];
+
+  // Agrupar ventas por N°FacturaVenta para mostrarlas como una sola factura con varias líneas
   const grupos = {};
-  entradas.forEach(e => {
-    const num = e['N°FacturaCompra'] || e.ID;
+  salidas.forEach(s => {
+    const num = s['N°FacturaVenta'] || s.ID;
     if (!grupos[num]) grupos[num] = [];
-    grupos[num].push(e);
+    grupos[num].push(s);
   });
 
   contenedor.innerHTML = `
+    <div style="display:flex; justify-content:flex-end; margin-bottom:16px;">
+      <button class="btn btn-primary" id="btn-nueva-venta">+ Nueva Venta</button>
+    </div>
+
+    <div class="card oculto" id="form-nueva-venta">
+      <h3 style="margin-bottom:16px;">Nueva Venta</h3>
+      <p style="font-size:12.5px; color:var(--color-gris-texto); margin-top:-10px; margin-bottom:16px;">El N° de Factura se genera automáticamente al guardar (correlativo FV-000001, FV-000002...).</p>
+
+      <div style="display:grid; grid-template-columns: 1.5fr 1fr 1fr; gap:16px; margin-bottom:12px;">
+        <div class="form-group">
+          <label>Cliente</label>
+          <input type="text" id="venta-cliente-nombre" list="lista-clientes" placeholder="Nombre del cliente (existente o nuevo)">
+          <datalist id="lista-clientes">
+            ${clientes.map(c => `<option value="${c.Nombre}">`).join('')}
+          </datalist>
+        </div>
+        <div class="form-group">
+          <label>Código de País</label>
+          <input type="text" id="venta-cod-pais" placeholder="Ej. +507" value="+507">
+        </div>
+        <div class="form-group">
+          <label>Teléfono</label>
+          <input type="text" id="venta-telefono" placeholder="Ej. 6123-4567">
+        </div>
+      </div>
+
+      <div class="form-group" style="max-width:220px; margin-bottom:20px;">
+        <label>Fecha de Venta</label>
+        <input type="date" id="venta-fecha">
+      </div>
+
+      <h4 style="margin-bottom:10px; color:var(--color-gris-texto);">Productos de esta venta</h4>
+      <p style="font-size:12.5px; color:var(--color-gris-texto); margin-bottom:10px;">Busca por código, descripción o talla — solo puedes vender productos con stock en Inventario.</p>
+      <div style="display:grid; grid-template-columns: 2fr 1fr 1fr auto; gap:10px; margin-bottom:8px;">
+        <div>
+          <input type="text" id="venta-linea-buscar" list="lista-inventario-venta" placeholder="Buscar producto por código, descripción o talla...">
+          <datalist id="lista-inventario-venta">
+            ${inventario.map(p => `<option value="${p.CodigoDeProducto} — ${p.Descripcion} (${p.Talla})">`).join('')}
+          </datalist>
+          <div id="venta-linea-stock-info" style="font-size:12px; color:var(--color-gris-texto); margin-top:4px;"></div>
+        </div>
+        <input type="number" id="venta-linea-cantidad" placeholder="Cantidad">
+        <input type="number" step="0.01" id="venta-linea-precio" placeholder="Precio/u">
+        <button class="btn btn-secundario" id="btn-agregar-linea-venta">+ Agregar</button>
+      </div>
+
+      <div id="tabla-lineas-venta" style="margin-bottom:16px;"></div>
+
+      <div style="display:flex; justify-content:flex-end; margin-bottom:16px;">
+        <div style="min-width:260px;">
+          <div style="display:flex; justify-content:space-between; padding:4px 0;"><span>Total</span><strong id="venta-total-mostrado">$0.00</strong></div>
+          <div class="form-group" style="margin:10px 0 4px;">
+            <label>Abono (lo que paga el cliente ahora)</label>
+            <input type="number" step="0.01" id="venta-abono" placeholder="0.00" value="0">
+          </div>
+          <div style="display:flex; justify-content:space-between; padding:4px 0; color:var(--color-gris-texto);"><span>Saldo pendiente</span><strong id="venta-saldo-mostrado">$0.00</strong></div>
+        </div>
+      </div>
+
+      <div style="display:flex; gap:10px; margin-top:8px;">
+        <button class="btn btn-primary" id="btn-guardar-venta">Guardar Venta</button>
+        <button class="btn btn-secundario" id="btn-cancelar-venta">Cancelar</button>
+      </div>
+    </div>
+
     <div class="card">
-      <p style="color:var(--color-gris-texto); font-size:13px; margin-bottom:16px;">Este historial se llena automáticamente cuando marcas una solicitud como "Entregado" en Solicitud a Proveedor.</p>
-      ${Object.keys(grupos).length === 0 ? '<p>Sin entradas registradas aún</p>' : Object.entries(grupos).map(([numFactura, lineas]) => {
+      ${Object.keys(grupos).length === 0 ? '<p>Sin ventas aún</p>' : Object.entries(grupos).sort((a, b) => b[0].localeCompare(a[0])).map(([numFactura, lineas]) => {
         const primera = lineas[0];
-        const totalFactura = lineas.reduce((sum, l) => sum + (Number(l.CostoTotal) || 0), 0);
-        const idGrupo = 'entrada-' + numFactura.replace(/[^a-zA-Z0-9]/g, '');
+        const totalFactura = lineas.reduce((sum, l) => sum + (Number(l.Cantidad) * Number(l.PrecioUnidad)), 0);
+        const abonoFactura = lineas.reduce((sum, l) => sum + (Number(l.Abono) || 0), 0);
+        const saldoFactura = totalFactura - abonoFactura;
+        const cliente = clientes.find(c => (c.Nombre || '').trim().toLowerCase() === (primera.Nombre || '').trim().toLowerCase());
+        const idGrupo = 'grupo-venta-' + numFactura.replace(/[^a-zA-Z0-9]/g, '');
         return `
           <div style="border:1px solid var(--color-borde); border-radius:var(--radio); margin-bottom:12px; overflow:hidden;">
-            <div class="fila-resumen-entrada" data-target="${idGrupo}" style="display:flex; justify-content:space-between; align-items:center; padding:14px 16px; cursor:pointer; background:#faf7f0;">
+            <div class="fila-resumen-venta" data-target="${idGrupo}" style="display:flex; justify-content:space-between; align-items:center; padding:14px 16px; cursor:pointer; background:#faf7f0;">
               <div>
-                <strong>Factura ${numFactura}</strong>
-                <span style="color:var(--color-gris-texto); margin-left:10px;">${primera.Proveedor} · ${formatearFecha(primera.Fecha)}</span>
-                <span style="color:var(--color-gris-texto); margin-left:10px;">Total: $${totalFactura.toFixed(2)}</span>
+                <strong>${numFactura}</strong>
+                <span style="color:var(--color-gris-texto); margin-left:10px;">${primera.Nombre || 'Sin nombre'} · ${formatearFecha(primera.Fecha)}</span>
+                <span class="badge ${primera.Estado === 'Pagado' ? 'badge-ok' : 'badge-pendiente'}" style="margin-left:8px;">${primera.Estado}</span>
               </div>
-              <span style="color:var(--color-gris-texto); font-size:13px;">Ver detalle ▾</span>
+              <div style="display:flex; align-items:center; gap:14px;">
+                ${cliente && cliente.Telefono ? `<a href="https://wa.me/${soloDigitos(cliente.Telefono)}" target="_blank" onclick="event.stopPropagation()" style="color:var(--color-rojo); text-decoration:none; font-weight:600; font-size:13px;">📱 WhatsApp</a>` : ''}
+                <strong>$${totalFactura.toFixed(2)}</strong>
+                <span style="color:var(--color-gris-texto); font-size:13px;">Ver detalle ▾</span>
+              </div>
             </div>
             <div id="${idGrupo}" class="oculto" style="padding:16px;">
               <table>
-                <thead><tr><th>Código</th><th>Descripción</th><th>Talla</th><th>Lote</th><th>Cant.</th><th>Costo/u</th><th>Total</th></tr></thead>
+                <thead><tr><th>Código</th><th>Descripción</th><th>Talla</th><th>Cant.</th><th>Precio/u</th><th>Total línea</th></tr></thead>
                 <tbody>
                   ${lineas.map(l => `
                     <tr>
                       <td>${l.CodigoDeProducto}</td>
                       <td>${l.Descripcion}</td>
                       <td>${l.Talla}</td>
-                      <td>${l.Lote}</td>
                       <td>${l.Cantidad}</td>
-                      <td>$${Number(l.CostoPorUnidad || 0).toFixed(2)}</td>
-                      <td>$${Number(l.CostoTotal || 0).toFixed(2)}</td>
+                      <td>$${Number(l.PrecioUnidad || 0).toFixed(2)}</td>
+                      <td>$${(Number(l.Cantidad) * Number(l.PrecioUnidad)).toFixed(2)}</td>
                     </tr>
                   `).join('')}
                 </tbody>
               </table>
+              <div style="display:flex; justify-content:flex-end; gap:24px; margin-top:12px; font-size:13.5px; color:var(--color-gris-texto);">
+                <span>Abonado: <strong style="color:var(--color-texto);">$${abonoFactura.toFixed(2)}</strong></span>
+                <span>Saldo: <strong style="color:var(--color-texto);">$${saldoFactura.toFixed(2)}</strong></span>
+              </div>
             </div>
           </div>
         `;
@@ -584,15 +667,172 @@ async function renderEntrada(contenedor) {
     </div>
   `;
 
-  document.querySelectorAll('.fila-resumen-entrada').forEach(fila => {
+  // Expandir/colapsar detalle de cada venta al hacer click en el resumen
+  document.querySelectorAll('.fila-resumen-venta').forEach(fila => {
     fila.addEventListener('click', () => {
       document.getElementById(fila.dataset.target).classList.toggle('oculto');
     });
   });
-}
 
-async function renderSalida(contenedor) {
-  contenedor.innerHTML = `<div class="card">Módulo de Ventas — construimos el formulario (con descuento automático de stock) en el siguiente paso.</div>`;
+  const form = document.getElementById('form-nueva-venta');
+  document.getElementById('venta-fecha').valueAsDate = new Date();
+
+  document.getElementById('btn-nueva-venta').addEventListener('click', () => form.classList.toggle('oculto'));
+  document.getElementById('btn-cancelar-venta').addEventListener('click', () => form.classList.add('oculto'));
+
+  // Autocompletar teléfono si el cliente ya existe
+  const inputClienteNombre = document.getElementById('venta-cliente-nombre');
+  inputClienteNombre.addEventListener('input', () => {
+    const clienteExistente = clientes.find(c => (c.Nombre || '').trim().toLowerCase() === inputClienteNombre.value.trim().toLowerCase());
+    if (clienteExistente && clienteExistente.Telefono) {
+      const partes = String(clienteExistente.Telefono).split(' ');
+      document.getElementById('venta-cod-pais').value = partes[0] || '+507';
+      document.getElementById('venta-telefono').value = partes.slice(1).join(' ') || '';
+    }
+  });
+
+  function actualizarTotales() {
+    const total = lineasVenta.reduce((sum, l) => sum + (l.cantidad * l.precio), 0);
+    const abono = Number(document.getElementById('venta-abono').value) || 0;
+    document.getElementById('venta-total-mostrado').textContent = '$' + total.toFixed(2);
+    document.getElementById('venta-saldo-mostrado').textContent = '$' + Math.max(total - abono, 0).toFixed(2);
+  }
+  document.getElementById('venta-abono').addEventListener('input', actualizarTotales);
+
+  function renderTablaLineasVenta() {
+    const div = document.getElementById('tabla-lineas-venta');
+    if (lineasVenta.length === 0) {
+      div.innerHTML = '<p style="color:var(--color-gris-texto); font-size:13.5px;">Aún no has agregado productos a esta venta.</p>';
+    } else {
+      div.innerHTML = `
+        <table>
+          <thead><tr><th>Código</th><th>Descripción</th><th>Talla</th><th>Cant.</th><th>Precio/u</th><th>Total</th><th></th></tr></thead>
+          <tbody>
+            ${lineasVenta.map((l, idx) => `
+              <tr>
+                <td>${l.codigo}</td><td>${l.descripcion}</td><td>${l.talla}</td>
+                <td>${l.cantidad}</td><td>$${l.precio.toFixed(2)}</td><td>$${(l.cantidad * l.precio).toFixed(2)}</td>
+                <td><button class="btn-quitar-linea-venta" data-idx="${idx}" style="background:none; border:none; color:var(--color-rojo); cursor:pointer; font-weight:700;">✕</button></td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `;
+      div.querySelectorAll('.btn-quitar-linea-venta').forEach(b => {
+        b.addEventListener('click', () => {
+          lineasVenta.splice(Number(b.dataset.idx), 1);
+          renderTablaLineasVenta();
+          actualizarTotales();
+        });
+      });
+    }
+    actualizarTotales();
+  }
+
+  // Muestra el stock actual del producto que coincide con lo que se está escribiendo/seleccionando
+  const inputBuscarVenta = document.getElementById('venta-linea-buscar');
+  const infoStockVenta = document.getElementById('venta-linea-stock-info');
+
+  function buscarProductoVentaPorTexto(texto) {
+    const codigoTexto = texto.split(' — ')[0].trim();
+    return inventario.find(p => p.CodigoDeProducto === codigoTexto);
+  }
+
+  inputBuscarVenta.addEventListener('input', () => {
+    const producto = buscarProductoVentaPorTexto(inputBuscarVenta.value);
+    if (producto) {
+      infoStockVenta.textContent = `Stock disponible: ${producto.StockActual} unidades — ${producto.Descripcion}`;
+      infoStockVenta.style.color = 'var(--color-gris-texto)';
+    } else {
+      infoStockVenta.textContent = inputBuscarVenta.value ? 'Producto no encontrado en Inventario' : '';
+      infoStockVenta.style.color = inputBuscarVenta.value ? 'var(--color-rojo)' : 'var(--color-gris-texto)';
+    }
+  });
+
+  document.getElementById('btn-agregar-linea-venta').addEventListener('click', () => {
+    const producto = buscarProductoVentaPorTexto(inputBuscarVenta.value);
+    const cantidad = Number(document.getElementById('venta-linea-cantidad').value) || 0;
+    const precio = Number(document.getElementById('venta-linea-precio').value) || 0;
+
+    if (!producto) {
+      alert('Selecciona un producto válido de la lista de Inventario.');
+      return;
+    }
+    if (!cantidad) {
+      alert('La cantidad es obligatoria');
+      return;
+    }
+    if (!precio) {
+      alert('El precio de venta es obligatorio');
+      return;
+    }
+
+    // Suma lo ya agregado de este mismo producto en el carrito para validar contra el stock real
+    const yaEnCarrito = lineasVenta.filter(l => l.codigo === producto.CodigoDeProducto).reduce((sum, l) => sum + l.cantidad, 0);
+    if (yaEnCarrito + cantidad > Number(producto.StockActual)) {
+      alert(`Stock insuficiente. Disponible: ${producto.StockActual}, ya tienes ${yaEnCarrito} de este producto en el carrito.`);
+      return;
+    }
+
+    lineasVenta.push({
+      codigo: producto.CodigoDeProducto,
+      descripcion: producto.Descripcion,
+      talla: producto.Talla,
+      cantidad, precio
+    });
+    renderTablaLineasVenta();
+
+    inputBuscarVenta.value = '';
+    document.getElementById('venta-linea-cantidad').value = '';
+    document.getElementById('venta-linea-precio').value = '';
+    infoStockVenta.textContent = '';
+    inputBuscarVenta.focus();
+  });
+
+  renderTablaLineasVenta();
+
+  document.getElementById('btn-guardar-venta').addEventListener('click', async () => {
+    const nombreCliente = inputClienteNombre.value.trim();
+    const codPais = document.getElementById('venta-cod-pais').value.trim();
+    const telefono = document.getElementById('venta-telefono').value.trim();
+    const fecha = document.getElementById('venta-fecha').value;
+    const abono = Number(document.getElementById('venta-abono').value) || 0;
+
+    if (!nombreCliente) {
+      alert('El nombre del cliente es obligatorio');
+      return;
+    }
+    if (lineasVenta.length === 0) {
+      alert('Agrega al menos un producto a la venta');
+      return;
+    }
+
+    const btn = document.getElementById('btn-guardar-venta');
+    btn.disabled = true;
+    btn.textContent = 'Guardando...';
+
+    const telefonoCompleto = telefono ? `${codPais} ${telefono}` : '';
+    const mes = calcularMes(fecha);
+
+    const resultado = await Api.registrarSalida({
+      fecha, mes,
+      nombreCliente,
+      telefonoCliente: telefonoCompleto,
+      abono,
+      items: lineasVenta.map(l => ({
+        codigo: l.codigo, descripcion: l.descripcion, talla: l.talla,
+        cantidad: l.cantidad, precioUnidad: l.precio
+      }))
+    });
+
+    if (resultado.ok) {
+      alert(`Venta guardada: ${resultado.numFactura}\nTotal: $${resultado.totalFactura.toFixed(2)}\nEstado: ${resultado.estado}`);
+      renderSalida(contenedor);
+    } else {
+      btn.disabled = false;
+      btn.textContent = 'Guardar Venta';
+    }
+  });
 }
 
 async function renderBalance(contenedor) {
