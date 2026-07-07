@@ -184,6 +184,15 @@ async function renderInventario(contenedor) {
       return;
     }
 
+    // Alerta (no bloqueo) si ya existe un producto con la misma descripción — solo al crear, no al editar
+    if (!editandoId) {
+      const duplicado = data.find(p => (p.Descripcion || '').trim().toLowerCase() === descripcion.toLowerCase());
+      if (duplicado) {
+        const continuar = confirm(`Ya existe un producto con esta descripción:\n\n"${duplicado.Descripcion}" (Código: ${duplicado.CodigoDeProducto})\n\n¿Seguro que quieres crear otro producto con la misma descripción?`);
+        if (!continuar) return;
+      }
+    }
+
     const btn = document.getElementById('btn-guardar-producto');
     btn.disabled = true;
     btn.textContent = editandoId ? 'Guardando cambios...' : 'Guardando...';
