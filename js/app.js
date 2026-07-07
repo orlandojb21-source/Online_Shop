@@ -188,7 +188,75 @@ async function renderBalance(contenedor) {
 }
 
 async function renderProveedores(contenedor) {
-  contenedor.innerHTML = `<div class="card">Catálogo de Proveedores — CRUD simple, se construye en el siguiente paso.</div>`;
+  const res = await Api.obtener('Proveedor');
+  const data = res.data || [];
+  contenedor.innerHTML = `
+    <div style="display:flex; justify-content:flex-end; margin-bottom:16px;">
+      <button class="btn btn-primary" id="btn-nuevo-proveedor">+ Agregar Proveedor</button>
+    </div>
+
+    <div class="card oculto" id="form-nuevo-proveedor">
+      <h3 style="margin-bottom:16px;">Nuevo Proveedor</h3>
+      <div style="display:grid; grid-template-columns: 1fr 1fr; gap:16px;">
+        <div class="form-group">
+          <label>Nombre del Proveedor</label>
+          <input type="text" id="inp-nombre-prov" placeholder="Ej. Textiles del Istmo">
+        </div>
+        <div class="form-group">
+          <label>N° Proveedor</label>
+          <input type="text" id="inp-num-prov" placeholder="Ej. PROV-001">
+        </div>
+      </div>
+      <div style="display:flex; gap:10px; margin-top:8px;">
+        <button class="btn btn-primary" id="btn-guardar-proveedor">Guardar</button>
+        <button class="btn btn-secundario" id="btn-cancelar-proveedor">Cancelar</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <table>
+        <thead><tr><th>N° Proveedor</th><th>Nombre</th></tr></thead>
+        <tbody>
+          ${data.map(p => `
+            <tr>
+              <td>${p['N°Proveedor']}</td>
+              <td>${p.Nombre}</td>
+            </tr>
+          `).join('') || '<tr><td colspan="2">Sin proveedores aún</td></tr>'}
+        </tbody>
+      </table>
+    </div>
+  `;
+
+  const form = document.getElementById('form-nuevo-proveedor');
+  document.getElementById('btn-nuevo-proveedor').addEventListener('click', () => form.classList.toggle('oculto'));
+  document.getElementById('btn-cancelar-proveedor').addEventListener('click', () => form.classList.add('oculto'));
+
+  document.getElementById('btn-guardar-proveedor').addEventListener('click', async () => {
+    const nombre = document.getElementById('inp-nombre-prov').value.trim();
+    const numProveedor = document.getElementById('inp-num-prov').value.trim();
+
+    if (!nombre || !numProveedor) {
+      alert('Nombre y N° Proveedor son obligatorios');
+      return;
+    }
+
+    const btn = document.getElementById('btn-guardar-proveedor');
+    btn.disabled = true;
+    btn.textContent = 'Guardando...';
+
+    const resultado = await Api.agregar('Proveedor', {
+      Nombre: nombre,
+      'N°Proveedor': numProveedor
+    });
+
+    if (resultado.ok) {
+      renderProveedores(contenedor); // recargar tabla
+    } else {
+      btn.disabled = false;
+      btn.textContent = 'Guardar';
+    }
+  });
 }
 
 // Cargar dashboard al iniciar
