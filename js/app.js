@@ -4,6 +4,7 @@ const titulos = {
   dashboard: 'Dashboard',
   inventario: 'Inventario',
   solicitudProveedor: 'Solicitud a Proveedor',
+  entrada: 'Entrada de Mercancía',
   salida: 'Ventas (Salida)',
   balance: 'Balance',
   proveedores: 'Proveedores'
@@ -27,6 +28,7 @@ async function cargarModulo(modulo) {
     case 'dashboard': return renderDashboard(contenedor);
     case 'inventario': return renderInventario(contenedor);
     case 'solicitudProveedor': return renderSolicitudProveedor(contenedor);
+    case 'entrada': return renderEntrada(contenedor);
     case 'salida': return renderSalida(contenedor);
     case 'balance': return renderBalance(contenedor);
     case 'proveedores': return renderProveedores(contenedor);
@@ -232,9 +234,10 @@ async function renderSolicitudProveedor(contenedor) {
   const inventario = resInventario.data || [];
   lineasSolicitud = [];
 
-  // Agrupar solicitudes por N°Solicitud para mostrarlas como una sola orden con varias líneas
+  // Agrupar solicitudes por N°Solicitud — solo se muestran las que aún no han sido entregadas
+  const pendientes = solicitudes.filter(s => s.Estado !== 'Recibido');
   const grupos = {};
-  solicitudes.forEach(s => {
+  pendientes.forEach(s => {
     const num = s['N°Solicitud'] || s.ID;
     if (!grupos[num]) grupos[num] = [];
     grupos[num].push(s);
@@ -297,9 +300,8 @@ async function renderSolicitudProveedor(contenedor) {
     </div>
 
     <div class="card">
-      ${Object.keys(grupos).length === 0 ? '<p>Sin solicitudes aún</p>' : Object.entries(grupos).map(([numSolicitud, lineas]) => {
+      ${Object.keys(grupos).length === 0 ? '<p>Sin solicitudes pendientes</p>' : Object.entries(grupos).map(([numSolicitud, lineas]) => {
         const primera = lineas[0];
-        const todoRecibido = lineas.every(l => l.Estado === 'Recibido');
         const idGrupo = 'grupo-' + numSolicitud.replace(/[^a-zA-Z0-9]/g, '');
         return `
           <div style="border:1px solid var(--color-borde); border-radius:var(--radio); margin-bottom:12px; overflow:hidden;">
@@ -308,16 +310,16 @@ async function renderSolicitudProveedor(contenedor) {
                 <strong>Solicitud ${numSolicitud}</strong>
                 <span style="color:var(--color-gris-texto); margin-left:10px;">${primera.NombreDeProveedor} · ${formatearFecha(primera.Fecha)}</span>
                 <span class="badge ${primera.Pagado === 'Sí' ? 'badge-ok' : 'badge-pendiente'}" style="margin-left:8px;">${primera.Pagado === 'Sí' ? 'Pagado' : 'No pagado'}</span>
-                <span class="badge ${todoRecibido ? 'badge-ok' : 'badge-alerta'}" style="margin-left:6px;">${todoRecibido ? 'Recibido' : 'Pendiente'}</span>
+                <span class="badge badge-alerta" style="margin-left:6px;">Pendiente</span>
               </div>
               <span style="color:var(--color-gris-texto); font-size:13px;">Ver detalle ▾</span>
             </div>
             <div id="${idGrupo}" class="oculto" style="padding:16px;">
               <div style="display:flex; justify-content:flex-end; margin-bottom:10px;">
-                ${!todoRecibido ? `<button class="btn btn-primary btn-entregado-grupo" data-num="${numSolicitud}" style="padding:6px 14px; font-size:13px;">Marcar todo como Entregado</button>` : ''}
+                <button class="btn btn-primary btn-entregado-grupo" data-num="${numSolicitud}" style="padding:6px 14px; font-size:13px;">Marcar todo como Entregado</button>
               </div>
               <table>
-                <thead><tr><th>Código</th><th>Descripción</th><th>Talla</th><th>Cant.</th><th>Total</th><th>Estado</th></tr></thead>
+                <thead><tr><th>Código</th><th>Descripción</th><th>Talla</th><th>Cant.</th><th>Total</th></tr></thead>
                 <tbody>
                   ${lineas.map(l => `
                     <tr>
@@ -326,7 +328,6 @@ async function renderSolicitudProveedor(contenedor) {
                       <td>${l.Talla}</td>
                       <td>${l.Cantidad}</td>
                       <td>$${Number(l.TotalDeCosto || 0).toFixed(2)}</td>
-                      <td><span class="badge ${l.Estado === 'Recibido' ? 'badge-ok' : 'badge-alerta'}">${l.Estado}</span></td>
                     </tr>
                   `).join('')}
                 </tbody>
@@ -503,7 +504,8 @@ async function renderSolicitudProveedor(contenedor) {
           costoPorUnidad: Number(linea.PrecioUnidad)
         });
         if (resultado.ok) {
-          await Api.actualizar('SolicitudProveedor', linea.ID, { Estado: 'Recibido' });
+          // La solicitud ya se convirtió en Entrada real; se elimina de Solicitud a Proveedor
+          await Api.eliminar('SolicitudProveedor', linea.ID);
         }
       }
 
@@ -528,6 +530,65 @@ function formatearFecha(valor) {
   const mes = String(fecha.getUTCMonth() + 1).padStart(2, '0');
   const anio = fecha.getUTCFullYear();
   return `${dia}/${mes}/${anio}`;
+}
+
+async function renderEntrada(contenedor) {
+  const res = await Api.obtener('Entrada');
+  const entradas = res.data || [];
+
+  const grupos = {};
+  entradas.forEach(e => {
+    const num = e['N°FacturaCompra'] || e.ID;
+    if (!grupos[num]) grupos[num] = [];
+    grupos[num].push(e);
+  });
+
+  contenedor.innerHTML = `
+    <div class="card">
+      <p style="color:var(--color-gris-texto); font-size:13px; margin-bottom:16px;">Este historial se llena automáticamente cuando marcas una solicitud como "Entregado" en Solicitud a Proveedor.</p>
+      ${Object.keys(grupos).length === 0 ? '<p>Sin entradas registradas aún</p>' : Object.entries(grupos).map(([numFactura, lineas]) => {
+        const primera = lineas[0];
+        const totalFactura = lineas.reduce((sum, l) => sum + (Number(l.CostoTotal) || 0), 0);
+        const idGrupo = 'entrada-' + numFactura.replace(/[^a-zA-Z0-9]/g, '');
+        return `
+          <div style="border:1px solid var(--color-borde); border-radius:var(--radio); margin-bottom:12px; overflow:hidden;">
+            <div class="fila-resumen-entrada" data-target="${idGrupo}" style="display:flex; justify-content:space-between; align-items:center; padding:14px 16px; cursor:pointer; background:#faf7f0;">
+              <div>
+                <strong>Factura ${numFactura}</strong>
+                <span style="color:var(--color-gris-texto); margin-left:10px;">${primera.Proveedor} · ${formatearFecha(primera.Fecha)}</span>
+                <span style="color:var(--color-gris-texto); margin-left:10px;">Total: $${totalFactura.toFixed(2)}</span>
+              </div>
+              <span style="color:var(--color-gris-texto); font-size:13px;">Ver detalle ▾</span>
+            </div>
+            <div id="${idGrupo}" class="oculto" style="padding:16px;">
+              <table>
+                <thead><tr><th>Código</th><th>Descripción</th><th>Talla</th><th>Lote</th><th>Cant.</th><th>Costo/u</th><th>Total</th></tr></thead>
+                <tbody>
+                  ${lineas.map(l => `
+                    <tr>
+                      <td>${l.CodigoDeProducto}</td>
+                      <td>${l.Descripcion}</td>
+                      <td>${l.Talla}</td>
+                      <td>${l.Lote}</td>
+                      <td>${l.Cantidad}</td>
+                      <td>$${Number(l.CostoPorUnidad || 0).toFixed(2)}</td>
+                      <td>$${Number(l.CostoTotal || 0).toFixed(2)}</td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        `;
+      }).join('')}
+    </div>
+  `;
+
+  document.querySelectorAll('.fila-resumen-entrada').forEach(fila => {
+    fila.addEventListener('click', () => {
+      document.getElementById(fila.dataset.target).classList.toggle('oculto');
+    });
+  });
 }
 
 async function renderSalida(contenedor) {
