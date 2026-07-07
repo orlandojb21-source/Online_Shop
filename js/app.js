@@ -73,6 +73,44 @@ async function renderInventario(contenedor) {
   const res = await Api.obtener('Inventario');
   const data = res.data || [];
   contenedor.innerHTML = `
+    <div style="display:flex; justify-content:flex-end; margin-bottom:16px;">
+      <button class="btn btn-primary" id="btn-nuevo-producto">+ Agregar Producto</button>
+    </div>
+
+    <div class="card oculto" id="form-nuevo-producto">
+      <h3 style="margin-bottom:16px;">Nuevo Producto</h3>
+      <div style="display:grid; grid-template-columns: 1fr 1fr; gap:16px;">
+        <div class="form-group">
+          <label>Código de Producto</label>
+          <input type="text" id="inp-codigo" placeholder="Ej. CAM-001">
+        </div>
+        <div class="form-group">
+          <label>Descripción</label>
+          <input type="text" id="inp-descripcion" placeholder="Ej. Camisa Manga Larga">
+        </div>
+        <div class="form-group">
+          <label>Talla</label>
+          <input type="text" id="inp-talla" placeholder="Ej. M">
+        </div>
+        <div class="form-group">
+          <label>N° Lote (referencia, opcional)</label>
+          <input type="text" id="inp-lote" placeholder="Ej. Lote inicial">
+        </div>
+        <div class="form-group">
+          <label>Stock Actual (unidades que tienes hoy)</label>
+          <input type="number" id="inp-stock" placeholder="0">
+        </div>
+        <div class="form-group">
+          <label>Costo Promedio por Unidad</label>
+          <input type="number" step="0.01" id="inp-costo" placeholder="0.00">
+        </div>
+      </div>
+      <div style="display:flex; gap:10px; margin-top:8px;">
+        <button class="btn btn-primary" id="btn-guardar-producto">Guardar</button>
+        <button class="btn btn-secundario" id="btn-cancelar-producto">Cancelar</button>
+      </div>
+    </div>
+
     <div class="card">
       <table>
         <thead><tr><th>Código</th><th>Descripción</th><th>Talla</th><th>Stock</th><th>Importe</th></tr></thead>
@@ -90,6 +128,47 @@ async function renderInventario(contenedor) {
       </table>
     </div>
   `;
+
+  const form = document.getElementById('form-nuevo-producto');
+  document.getElementById('btn-nuevo-producto').addEventListener('click', () => form.classList.toggle('oculto'));
+  document.getElementById('btn-cancelar-producto').addEventListener('click', () => form.classList.add('oculto'));
+
+  document.getElementById('btn-guardar-producto').addEventListener('click', async () => {
+    const codigo = document.getElementById('inp-codigo').value.trim();
+    const descripcion = document.getElementById('inp-descripcion').value.trim();
+    const talla = document.getElementById('inp-talla').value.trim();
+    const lote = document.getElementById('inp-lote').value.trim();
+    const stock = Number(document.getElementById('inp-stock').value) || 0;
+    const costo = Number(document.getElementById('inp-costo').value) || 0;
+
+    if (!codigo || !descripcion || !talla) {
+      alert('Código, Descripción y Talla son obligatorios');
+      return;
+    }
+
+    const btn = document.getElementById('btn-guardar-producto');
+    btn.disabled = true;
+    btn.textContent = 'Guardando...';
+
+    const resultado = await Api.agregar('Inventario', {
+      CodigoDeProducto: codigo,
+      Descripcion: descripcion,
+      Talla: talla,
+      'N°Lote': lote,
+      Entrada: stock,
+      Salida: 0,
+      StockActual: stock,
+      CostoPromedio: costo,
+      Importe: stock * costo
+    });
+
+    if (resultado.ok) {
+      renderInventario(contenedor); // recargar tabla
+    } else {
+      btn.disabled = false;
+      btn.textContent = 'Guardar';
+    }
+  });
 }
 
 async function renderSolicitudProveedor(contenedor) {
