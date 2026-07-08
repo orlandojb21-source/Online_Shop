@@ -2,27 +2,39 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Online Shop</title>
+
+<!-- Favicon -->
+<link rel="icon" type="image/png" href="img/favicon.png">
+
+<!-- PWA: instalable en Android -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#E8121C">
+
+<!-- PWA: soporte iPhone/iPad (Apple ignora manifest.json, usa estos meta tags aparte) -->
+<link rel="apple-touch-icon" href="img/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Online Shop">
+
 <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
-
 <div class="app-layout">
   <!-- SIDEBAR -->
   <aside class="sidebar">
     <div class="sidebar-logo">ONLINE<span>.</span>SHOP</div>
     <nav id="nav-menu">
-      <div class="nav-item activo" data-modulo="dashboard">📊 Dashboard</div>
-      <div class="nav-item" data-modulo="inventario">📦 Inventario</div>
-      <div class="nav-item" data-modulo="solicitudProveedor">📝 Solicitud a Proveedor</div>
-      <div class="nav-item" data-modulo="entrada">⬇️ Entrada de Mercancía</div>
-      <div class="nav-item" data-modulo="salida">⬆️ Ventas (Salida)</div>
-      <div class="nav-item" data-modulo="balance">💰 Balance</div>
-      <div class="nav-item" data-modulo="proveedores">🏭 Proveedores</div>
+      <div class="nav-item activo" data-modulo="dashboard"><span class="nav-icon">📊</span><span class="nav-texto">Dashboard</span></div>
+      <div class="nav-item" data-modulo="inventario"><span class="nav-icon">📦</span><span class="nav-texto">Inventario</span></div>
+      <div class="nav-item" data-modulo="solicitudProveedor"><span class="nav-icon">📝</span><span class="nav-texto">Solicitud a Proveedor</span></div>
+      <div class="nav-item" data-modulo="entrada"><span class="nav-icon">⬇️</span><span class="nav-texto">Entrada de Mercancía</span></div>
+      <div class="nav-item" data-modulo="salida"><span class="nav-icon">⬆️</span><span class="nav-texto">Ventas (Salida)</span></div>
+      <div class="nav-item" data-modulo="balance"><span class="nav-icon">💰</span><span class="nav-texto">Balance</span></div>
+      <div class="nav-item" data-modulo="proveedores"><span class="nav-icon">🏭</span><span class="nav-texto">Proveedores</span></div>
     </nav>
   </aside>
-
   <!-- CONTENIDO PRINCIPAL -->
   <main class="main-content">
     <div class="main-header">
@@ -33,8 +45,15 @@
     </div>
   </main>
 </div>
-
 <script src="js/api.js"></script>
 <script src="js/app.js"></script>
+<script>
+  // Registro del Service Worker — habilita instalar la app en Android/iPhone
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('service-worker.js').catch(err => console.error('Service Worker no registrado:', err));
+    });
+  }
+</script>
 </body>
 </html>
