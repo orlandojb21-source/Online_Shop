@@ -35,5 +35,6 @@ const Api = {
   registrarAbono: (datos) => apiCall('registrarAbono', datos),
   generarRecibo: (numFactura) => apiCall('generarRecibo', { numFactura }),
   auditarInventario: () => apiCall('auditarInventario', {}),
+  generarReporte: (datos) => apiCall('generarReporte', datos),
   recalcularBalance: (mes) => apiCall('recalcularBalance', { mes })
 };
