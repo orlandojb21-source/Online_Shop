@@ -11,14 +11,19 @@ const titulos = {
 };
 
 document.querySelectorAll('.nav-item').forEach(item => {
-  item.addEventListener('click', () => {
-    document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('activo'));
-    item.classList.add('activo');
-    const modulo = item.dataset.modulo;
-    document.getElementById('titulo-modulo').textContent = titulos[modulo];
-    cargarModulo(modulo);
-  });
+  item.addEventListener('click', () => irAModulo(item.dataset.modulo));
 });
+
+function irAModulo(modulo, filtroInventario) {
+  document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('activo'));
+  const navItem = document.querySelector(`.nav-item[data-modulo="${modulo}"]`);
+  if (navItem) navItem.classList.add('activo');
+  document.getElementById('titulo-modulo').textContent = titulos[modulo];
+  if (filtroInventario) filtroInventarioInicial = filtroInventario;
+  cargarModulo(modulo);
+}
+
+let filtroInventarioInicial = null;
 
 async function cargarModulo(modulo) {
   const contenedor = document.getElementById('contenido-modulo');
@@ -40,10 +45,24 @@ async function renderDashboard(contenedor) {
   const inv = await Api.obtener('Inventario');
   const productos = inv.data || [];
   const stockTotal = productos.reduce((sum, p) => sum + (Number(p.StockActual) || 0), 0);
-  const stockBajo = productos.filter(p => Number(p.StockActual) <= 5).length;
+  const stockBajo = productos.filter(p => Number(p.StockActual) <= 5 && Number(p.StockActual) > 0).length;
   const valorInventario = productos.reduce((sum, p) => sum + (Number(p.Importe) || 0), 0);
 
   contenedor.innerHTML = `
+    <div class="card" style="display:flex; align-items:center; gap:16px; margin-bottom:20px; background:#111; color:#fff;">
+      <div style="width:52px; height:52px; border-radius:10px; background:var(--color-rojo); display:flex; align-items:center; justify-content:center; font-weight:800; font-size:22px; flex-shrink:0;">OS</div>
+      <div>
+        <div style="font-size:20px; font-weight:800; letter-spacing:1px;">ONLINE SHOP</div>
+        <div style="font-size:12.5px; color:#bbb;">Panel de control</div>
+      </div>
+    </div>
+
+    <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:16px; margin-bottom:24px;">
+      <button class="btn btn-primary" id="btn-acceso-ventas" style="padding:18px; font-size:15px;">🧾 Ir a Ventas</button>
+      <button class="btn btn-primary" id="btn-acceso-solicitud" style="padding:18px; font-size:15px;">📦 Solicitud a Proveedor</button>
+      <button class="btn btn-primary" id="btn-acceso-stock" style="padding:18px; font-size:15px;">📊 Ver lo que tengo en stock</button>
+    </div>
+
     <div class="stats-grid">
       <div class="stat-card">
         <div class="label">Productos en catálogo</div>
@@ -62,10 +81,11 @@ async function renderDashboard(contenedor) {
         <div class="valor">$${valorInventario.toFixed(2)}</div>
       </div>
     </div>
-    <div class="card">
-      <p style="color: var(--color-gris-texto)">Este es el punto de partida. En el siguiente paso construimos el detalle de cada módulo (tablas, formularios de alta/edición, filtros).</p>
-    </div>
   `;
+
+  document.getElementById('btn-acceso-ventas').addEventListener('click', () => irAModulo('salida'));
+  document.getElementById('btn-acceso-solicitud').addEventListener('click', () => irAModulo('solicitudProveedor'));
+  document.getElementById('btn-acceso-stock').addEventListener('click', () => irAModulo('inventario', 'con-stock'));
 }
 
 // ============ MÓDULOS (placeholders — se construyen en el siguiente paso) ============
@@ -73,10 +93,29 @@ async function renderInventario(contenedor) {
   const res = await Api.obtener('Inventario');
   const data = res.data || [];
   contenedor.innerHTML = `
-    <div style="display:flex; justify-content:space-between; gap:16px; margin-bottom:16px;">
-      <input type="text" id="inv-buscar" placeholder="🔎 Buscar por código, descripción o talla..." style="max-width:340px;">
-      <button class="btn btn-primary" id="btn-nuevo-producto">+ Agregar Producto</button>
+    <div style="display:flex; justify-content:space-between; gap:16px; margin-bottom:16px; flex-wrap:wrap;">
+      <div style="display:flex; gap:10px; flex-wrap:wrap;">
+        <input type="text" id="inv-buscar" placeholder="🔎 Buscar por código, descripción o talla..." style="max-width:300px;">
+        <select id="inv-filtro-estado" style="max-width:170px;">
+          <option value="todos">Todos los estados</option>
+          <option value="con-stock">Con stock (&ge;1)</option>
+          <option value="en-stock">En stock (&gt;5)</option>
+          <option value="bajo">Stock bajo (1-5)</option>
+          <option value="agotado">Agotado (0)</option>
+        </select>
+        <select id="inv-orden" style="max-width:170px;">
+          <option value="ninguno">Sin ordenar</option>
+          <option value="az">Descripción A-Z</option>
+          <option value="za">Descripción Z-A</option>
+        </select>
+      </div>
+      <div style="display:flex; gap:10px;">
+        <button class="btn btn-primary" id="btn-nuevo-producto">+ Agregar Producto</button>
+        <button class="btn btn-secundario" id="btn-verificar-inventario">🔍 Verificar Sumas</button>
+      </div>
     </div>
+
+    <div class="card oculto" id="reporte-verificacion" style="margin-bottom:16px;"></div>
 
     <div class="card oculto" id="form-nuevo-producto">
       <h3 style="margin-bottom:16px;">Nuevo Producto</h3>
@@ -171,16 +210,116 @@ async function renderInventario(contenedor) {
 
   renderFilasInventario(data);
 
-  // Filtro en vivo por código, descripción o talla
-  document.getElementById('inv-buscar').addEventListener('input', (e) => {
-    const q = e.target.value.trim().toLowerCase();
-    if (!q) { renderFilasInventario(data); return; }
-    const filtrada = data.filter(p =>
-      String(p.CodigoDeProducto || '').toLowerCase().includes(q) ||
-      String(p.Descripcion || '').toLowerCase().includes(q) ||
-      String(p.Talla || '').toLowerCase().includes(q)
-    );
-    renderFilasInventario(filtrada);
+  function aplicarFiltrosInventario() {
+    const q = document.getElementById('inv-buscar').value.trim().toLowerCase();
+    const estado = document.getElementById('inv-filtro-estado').value;
+    const orden = document.getElementById('inv-orden').value;
+
+    let resultado = data.filter(p => {
+      const coincideTexto = !q ||
+        String(p.CodigoDeProducto || '').toLowerCase().includes(q) ||
+        String(p.Descripcion || '').toLowerCase().includes(q) ||
+        String(p.Talla || '').toLowerCase().includes(q);
+
+      const stock = Number(p.StockActual) || 0;
+      const coincideEstado =
+        estado === 'todos' ? true :
+        estado === 'con-stock' ? stock >= 1 :
+        estado === 'en-stock' ? stock > 5 :
+        estado === 'bajo' ? (stock > 0 && stock <= 5) :
+        estado === 'agotado' ? stock === 0 : true;
+
+      return coincideTexto && coincideEstado;
+    });
+
+    if (orden === 'az') {
+      resultado = resultado.slice().sort((a, b) => String(a.Descripcion || '').localeCompare(String(b.Descripcion || '')));
+    } else if (orden === 'za') {
+      resultado = resultado.slice().sort((a, b) => String(b.Descripcion || '').localeCompare(String(a.Descripcion || '')));
+    }
+
+    renderFilasInventario(resultado);
+  }
+
+  // Si venimos de un acceso rápido del Dashboard (ej. "Ver lo que tengo en stock"), aplicamos el filtro de una vez
+  if (filtroInventarioInicial) {
+    document.getElementById('inv-filtro-estado').value = filtroInventarioInicial;
+    filtroInventarioInicial = null;
+    aplicarFiltrosInventario();
+  }
+
+  document.getElementById('inv-buscar').addEventListener('input', aplicarFiltrosInventario);
+  document.getElementById('inv-filtro-estado').addEventListener('change', aplicarFiltrosInventario);
+  document.getElementById('inv-orden').addEventListener('change', aplicarFiltrosInventario);
+
+  document.getElementById('btn-verificar-inventario').addEventListener('click', async () => {
+    const btn = document.getElementById('btn-verificar-inventario');
+    const reporte = document.getElementById('reporte-verificacion');
+    btn.disabled = true;
+    btn.textContent = 'Verificando...';
+
+    const resultado = await Api.auditarInventario();
+
+    btn.disabled = false;
+    btn.textContent = '🔍 Verificar Sumas';
+
+    if (!resultado.ok) return;
+
+    const conAlerta = resultado.productos.filter(p => p.tieneAlgunaAlerta);
+
+    reporte.classList.remove('oculto');
+    if (conAlerta.length === 0) {
+      reporte.innerHTML = `
+        <h3 style="margin-bottom:8px;">✅ Verificación de Inventario</h3>
+        <p style="color:var(--color-gris-texto);">Se revisaron ${resultado.totalProductos} productos contra el historial completo de Entrada y Salida. No se encontraron desajustes en las Salidas registradas.</p>
+      `;
+    } else {
+      reporte.innerHTML = `
+        <h3 style="margin-bottom:8px;">⚠️ Verificación de Inventario</h3>
+        <p style="color:var(--color-gris-texto); margin-bottom:12px;">
+          Se revisaron ${resultado.totalProductos} productos. <strong>${conAlerta.length}</strong> tienen números que no cuadran con el historial real de Entrada/Salida.
+          Esto NO corrige nada automáticamente — solo te muestra la diferencia para que decidas si corregirla desde ✏️ Editar.
+        </p>
+        <table>
+          <thead><tr><th>Código</th><th>Descripción</th><th>Stock guardado</th><th>Salida guardada</th><th>Salida real (histórico)</th><th>Importe guardado</th><th>Importe según Entradas</th><th>Alerta</th></tr></thead>
+          <tbody>
+            ${conAlerta.map(p => `
+              <tr>
+                <td>${p.codigo}</td>
+                <td>${p.descripcion}</td>
+                <td>${p.stockGuardado}</td>
+                <td>${p.salidaGuardada}</td>
+                <td>${p.salidaCalculada}${p.salidaDesajustada ? ' ⚠️' : ''}</td>
+                <td>$${p.importeGuardado.toFixed(2)}</td>
+                <td>$${p.importeCalculado.toFixed(2)}${p.importeSospechoso ? ' ⚠️' : ''}</td>
+                <td style="font-size:12px; color:var(--color-gris-texto);">
+                  ${p.salidaDesajustada ? 'La Salida guardada no coincide con la suma real de ventas de este producto. ' : ''}
+                  ${p.importeSospechoso ? `El Importe guardado es menor que la suma de sus Entradas registradas. <button class="btn-corregir-importe" data-id="${p.id}" data-importe="${p.importeCalculado}" style="margin-left:6px; padding:2px 8px; font-size:11.5px; background:var(--color-rojo); color:#fff; border:none; border-radius:4px; cursor:pointer;">Corregir a $${p.importeCalculado.toFixed(2)}</button>` : ''}
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+        <p style="font-size:12px; color:var(--color-gris-texto); margin-top:10px;">
+          Nota: si un producto se cargó manualmente con "+ Agregar Producto" (sin pasar por Solicitud a Proveedor → Entregado),
+          es normal que no tenga historial de Entrada — eso no es un error y no aparece aquí.
+        </p>
+      `;
+      reporte.querySelectorAll('.btn-corregir-importe').forEach(b => {
+        b.addEventListener('click', async () => {
+          b.disabled = true;
+          b.textContent = 'Corrigiendo...';
+          const res = await Api.actualizar('Inventario', b.dataset.id, { Importe: Number(b.dataset.importe) });
+          if (res.ok) {
+            renderInventario(contenedor);
+          } else {
+            b.disabled = false;
+            b.textContent = 'Corregir a $' + Number(b.dataset.importe).toFixed(2);
+          }
+        });
+      });
+    }
+    reporte.scrollIntoView({ behavior: 'smooth' });
   });
 
   document.getElementById('btn-nuevo-producto').addEventListener('click', () => {
