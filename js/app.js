@@ -259,11 +259,14 @@ async function renderSolicitudProveedor(contenedor) {
   const solicitudes = resSolicitudes.data || [];
   const proveedores = resProveedores.data || [];
   const inventario = resInventario.data || [];
+  // Solo se muestran las líneas AÚN NO entregadas — una vez "Recibido", la línea
+  // desaparece de esta vista y solo queda visible en Entrada de Mercancía.
+  const solicitudesPendientes = solicitudes.filter(s => s.Estado !== 'Recibido');
   lineasSolicitud = [];
 
   // Agrupar solicitudes por N°Solicitud para mostrarlas como una sola orden con varias líneas
   const grupos = {};
-  solicitudes.forEach(s => {
+  solicitudesPendientes.forEach(s => {
     const num = s['N°Solicitud'] || s.ID;
     if (!grupos[num]) grupos[num] = [];
     grupos[num].push(s);
