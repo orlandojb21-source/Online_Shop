@@ -4,6 +4,7 @@ const titulos = {
   dashboard: 'Dashboard',
   inventario: 'Inventario',
   solicitudProveedor: 'Solicitud a Proveedor',
+  entrada: 'Entrada de Mercancía',
   salida: 'Ventas (Salida)',
   balance: 'Balance',
   proveedores: 'Proveedores'
@@ -27,6 +28,7 @@ async function cargarModulo(modulo) {
     case 'dashboard': return renderDashboard(contenedor);
     case 'inventario': return renderInventario(contenedor);
     case 'solicitudProveedor': return renderSolicitudProveedor(contenedor);
+    case 'entrada': return renderEntrada(contenedor);
     case 'salida': return renderSalida(contenedor);
     case 'balance': return renderBalance(contenedor);
     case 'proveedores': return renderProveedores(contenedor);
@@ -100,8 +102,8 @@ async function renderInventario(contenedor) {
           <input type="number" id="inp-stock" placeholder="0">
         </div>
         <div class="form-group">
-          <label>Costo Promedio por Unidad</label>
-          <input type="number" step="0.01" id="inp-costo" placeholder="0.00">
+          <label>Importe (costo total invertido en el stock actual)</label>
+          <input type="number" step="0.01" id="inp-importe" placeholder="0.00">
         </div>
       </div>
       <div style="display:flex; gap:10px; margin-top:8px;">
@@ -157,7 +159,7 @@ async function renderInventario(contenedor) {
         document.getElementById('inp-talla').value = producto.Talla || '';
         document.getElementById('inp-lote').value = producto['N°Lote'] || '';
         document.getElementById('inp-stock').value = producto.StockActual || '';
-        document.getElementById('inp-costo').value = producto.CostoPromedio || '';
+        document.getElementById('inp-importe').value = producto.Importe || '';
 
         document.querySelector('#form-nuevo-producto h3').textContent = 'Editar Producto';
         document.getElementById('btn-guardar-producto').textContent = 'Guardar Cambios';
@@ -189,7 +191,7 @@ async function renderInventario(contenedor) {
     document.getElementById('inp-talla').value = '';
     document.getElementById('inp-lote').value = '';
     document.getElementById('inp-stock').value = '';
-    document.getElementById('inp-costo').value = '';
+    document.getElementById('inp-importe').value = '';
     document.querySelector('#form-nuevo-producto h3').textContent = 'Nuevo Producto';
     document.getElementById('btn-guardar-producto').textContent = 'Guardar';
     form.classList.toggle('oculto');
@@ -203,7 +205,7 @@ async function renderInventario(contenedor) {
     const talla = document.getElementById('inp-talla').value.trim();
     const lote = document.getElementById('inp-lote').value.trim();
     const stock = Number(document.getElementById('inp-stock').value) || 0;
-    const costo = Number(document.getElementById('inp-costo').value) || 0;
+    const importe = Number(document.getElementById('inp-importe').value) || 0;
 
     if (!codigo || !descripcion || !talla) {
       alert('Código, Descripción y Talla son obligatorios');
@@ -229,8 +231,7 @@ async function renderInventario(contenedor) {
       Talla: talla,
       'N°Lote': lote,
       StockActual: stock,
-      CostoPromedio: costo,
-      Importe: stock * costo
+      Importe: importe
     };
 
     const resultado = editandoId
@@ -558,10 +559,106 @@ function formatearFecha(valor) {
   return `${dia}/${mes}/${anio}`;
 }
 
+// ============ ENTRADA DE MERCANCÍA (historial de solo lectura) ============
+async function renderEntrada(contenedor) {
+  const res = await Api.obtener('Entrada');
+  const data = res.data || [];
+
+  // Agrupar por N° de Factura de Compra
+  const grupos = {};
+  data.forEach(e => {
+    const num = e['N°FacturaCompra'] || e.ID;
+    if (!grupos[num]) grupos[num] = [];
+    grupos[num].push(e);
+  });
+
+  contenedor.innerHTML = `
+    <div style="margin-bottom:16px;">
+      <input type="text" id="entrada-buscar" placeholder="🔎 Buscar por N° factura, proveedor, código o descripción..." style="max-width:400px;">
+    </div>
+    <div class="card" id="lista-entradas">
+      ${renderGruposEntrada(grupos)}
+    </div>
+  `;
+
+  document.querySelectorAll('.fila-resumen-entrada').forEach(fila => {
+    fila.addEventListener('click', () => {
+      document.getElementById(fila.dataset.target).classList.toggle('oculto');
+    });
+  });
+
+  document.getElementById('entrada-buscar').addEventListener('input', (e) => {
+    const q = e.target.value.trim().toLowerCase();
+    let gruposFiltrados = grupos;
+    if (q) {
+      gruposFiltrados = {};
+      Object.entries(grupos).forEach(([num, lineas]) => {
+        const coincide = String(num).toLowerCase().includes(q) ||
+          lineas.some(l =>
+            String(l.Proveedor || '').toLowerCase().includes(q) ||
+            String(l.CodigoDeProducto || '').toLowerCase().includes(q) ||
+            String(l.Descripcion || '').toLowerCase().includes(q)
+          );
+        if (coincide) gruposFiltrados[num] = lineas;
+      });
+    }
+    document.getElementById('lista-entradas').innerHTML = renderGruposEntrada(gruposFiltrados);
+    document.querySelectorAll('.fila-resumen-entrada').forEach(fila => {
+      fila.addEventListener('click', () => {
+        document.getElementById(fila.dataset.target).classList.toggle('oculto');
+      });
+    });
+  });
+}
+
+function renderGruposEntrada(grupos) {
+  const claves = Object.keys(grupos);
+  if (claves.length === 0) return '<p>Sin entradas de mercancía aún. Se registran automáticamente cuando marcas una Solicitud a Proveedor como "Entregado".</p>';
+
+  return claves.sort((a, b) => b.localeCompare(a)).map(numFactura => {
+    const lineas = grupos[numFactura];
+    const primera = lineas[0];
+    const totalFactura = lineas.reduce((sum, l) => sum + (Number(l.CostoTotal) || 0), 0);
+    const idGrupo = 'grupo-entrada-' + String(numFactura).replace(/[^a-zA-Z0-9]/g, '');
+    return `
+      <div style="border:1px solid var(--color-borde); border-radius:var(--radio); margin-bottom:12px; overflow:hidden;">
+        <div class="fila-resumen-entrada" data-target="${idGrupo}" style="display:flex; justify-content:space-between; align-items:center; padding:14px 16px; cursor:pointer; background:#faf7f0;">
+          <div>
+            <strong>Factura ${numFactura}</strong>
+            <span style="color:var(--color-gris-texto); margin-left:10px;">${primera.Proveedor || 'Sin proveedor'} · ${formatearFecha(primera.Fecha)}</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:14px;">
+            <strong>$${totalFactura.toFixed(2)}</strong>
+            <span style="color:var(--color-gris-texto); font-size:13px;">Ver detalle ▾</span>
+          </div>
+        </div>
+        <div id="${idGrupo}" class="oculto" style="padding:16px;">
+          <table>
+            <thead><tr><th>Código</th><th>Descripción</th><th>Talla</th><th>Lote</th><th>Cant.</th><th>Costo/u</th><th>Total</th></tr></thead>
+            <tbody>
+              ${lineas.map(l => `
+                <tr>
+                  <td>${l.CodigoDeProducto}</td>
+                  <td>${l.Descripcion}</td>
+                  <td>${l.Talla}</td>
+                  <td>${l.Lote || '—'}</td>
+                  <td>${l.Cantidad}</td>
+                  <td>$${Number(l.CostoPorUnidad || 0).toFixed(2)}</td>
+                  <td>$${Number(l.CostoTotal || 0).toFixed(2)}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
 // Estado temporal de las líneas de producto mientras se arma una venta nueva
 let lineasVenta = [];
 
-async function renderSalida(contenedor) {
+async function renderSalida(contenedor, facturaAEditar = null) {
   const [resSalidas, resClientes, resInventario] = await Promise.all([
     Api.obtener('Salida'),
     Api.obtener('Cliente'),
@@ -570,7 +667,6 @@ async function renderSalida(contenedor) {
   const salidas = resSalidas.data || [];
   const clientes = resClientes.data || [];
   const inventario = resInventario.data || [];
-  lineasVenta = [];
 
   // Agrupar ventas por N°FacturaVenta para mostrarlas como una sola factura con varias líneas
   const grupos = {};
@@ -580,14 +676,28 @@ async function renderSalida(contenedor) {
     grupos[num].push(s);
   });
 
+  // Si venimos a editar una factura existente, precargamos el carrito con sus líneas actuales
+  const editando = !!facturaAEditar;
+  if (editando) {
+    lineasVenta = grupos[facturaAEditar].map(l => ({
+      codigo: l.CodigoDeProducto, descripcion: l.Descripcion, talla: l.Talla,
+      cantidad: Number(l.Cantidad), precio: Number(l.PrecioUnidad)
+    }));
+  } else {
+    lineasVenta = [];
+  }
+
   contenedor.innerHTML = `
-    <div style="display:flex; justify-content:flex-end; margin-bottom:16px;">
+    <div style="display:flex; justify-content:space-between; gap:16px; margin-bottom:16px;">
+      <input type="text" id="venta-buscar-lista" placeholder="🔎 Buscar por N° factura, cliente, código o producto..." style="max-width:380px;">
       <button class="btn btn-primary" id="btn-nueva-venta">+ Nueva Venta</button>
     </div>
 
-    <div class="card oculto" id="form-nueva-venta">
-      <h3 style="margin-bottom:16px;">Nueva Venta</h3>
-      <p style="font-size:12.5px; color:var(--color-gris-texto); margin-top:-10px; margin-bottom:16px;">El N° de Factura se genera automáticamente al guardar (correlativo FV-000001, FV-000002...).</p>
+    <div class="card ${editando ? '' : 'oculto'}" id="form-nueva-venta">
+      <h3 style="margin-bottom:16px;">${editando ? 'Editar Venta ' + facturaAEditar : 'Nueva Venta'}</h3>
+      <p style="font-size:12.5px; color:var(--color-gris-texto); margin-top:-10px; margin-bottom:16px;">
+        ${editando ? 'Estás editando una factura existente. El N° de factura no cambia.' : 'El N° de Factura se genera automáticamente al guardar (correlativo FV-000001, FV-000002...).'}
+      </p>
 
       <div style="display:grid; grid-template-columns: 1.5fr 1fr 1fr; gap:16px; margin-bottom:12px;">
         <div class="form-group">
@@ -596,6 +706,7 @@ async function renderSalida(contenedor) {
           <datalist id="lista-clientes">
             ${clientes.map(c => `<option value="${c.Nombre}">`).join('')}
           </datalist>
+          <div id="venta-cliente-info" style="font-size:12px; color:var(--color-gris-texto); margin-top:4px;"></div>
         </div>
         <div class="form-group">
           <label>Código de País</label>
@@ -641,83 +752,143 @@ async function renderSalida(contenedor) {
       </div>
 
       <div style="display:flex; gap:10px; margin-top:8px;">
-        <button class="btn btn-primary" id="btn-guardar-venta">Guardar Venta</button>
+        <button class="btn btn-primary" id="btn-guardar-venta">${editando ? 'Guardar Cambios' : 'Guardar Venta'}</button>
         <button class="btn btn-secundario" id="btn-cancelar-venta">Cancelar</button>
       </div>
     </div>
 
-    <div class="card">
-      ${Object.keys(grupos).length === 0 ? '<p>Sin ventas aún</p>' : Object.entries(grupos).sort((a, b) => b[0].localeCompare(a[0])).map(([numFactura, lineas]) => {
-        const primera = lineas[0];
-        const totalFactura = lineas.reduce((sum, l) => sum + (Number(l.Cantidad) * Number(l.PrecioUnidad)), 0);
-        const abonoFactura = lineas.reduce((sum, l) => sum + (Number(l.Abono) || 0), 0);
-        const saldoFactura = totalFactura - abonoFactura;
-        const cliente = clientes.find(c => (c.Nombre || '').trim().toLowerCase() === (primera.Nombre || '').trim().toLowerCase());
-        const idGrupo = 'grupo-venta-' + numFactura.replace(/[^a-zA-Z0-9]/g, '');
-        return `
-          <div style="border:1px solid var(--color-borde); border-radius:var(--radio); margin-bottom:12px; overflow:hidden;">
-            <div class="fila-resumen-venta" data-target="${idGrupo}" style="display:flex; justify-content:space-between; align-items:center; padding:14px 16px; cursor:pointer; background:#faf7f0;">
-              <div>
-                <strong>${numFactura}</strong>
-                <span style="color:var(--color-gris-texto); margin-left:10px;">${primera.Nombre || 'Sin nombre'} · ${formatearFecha(primera.Fecha)}</span>
-                <span class="badge ${primera.Estado === 'Pagado' ? 'badge-ok' : 'badge-pendiente'}" style="margin-left:8px;">${primera.Estado}</span>
-              </div>
-              <div style="display:flex; align-items:center; gap:14px;">
-                ${cliente && cliente.Telefono ? `<a href="https://wa.me/${soloDigitos(cliente.Telefono)}" target="_blank" onclick="event.stopPropagation()" style="color:var(--color-rojo); text-decoration:none; font-weight:600; font-size:13px;">📱 WhatsApp</a>` : ''}
-                <strong>$${totalFactura.toFixed(2)}</strong>
-                <span style="color:var(--color-gris-texto); font-size:13px;">Ver detalle ▾</span>
-              </div>
-            </div>
-            <div id="${idGrupo}" class="oculto" style="padding:16px;">
-              <table>
-                <thead><tr><th>Código</th><th>Descripción</th><th>Talla</th><th>Cant.</th><th>Precio/u</th><th>Total línea</th></tr></thead>
-                <tbody>
-                  ${lineas.map(l => `
-                    <tr>
-                      <td>${l.CodigoDeProducto}</td>
-                      <td>${l.Descripcion}</td>
-                      <td>${l.Talla}</td>
-                      <td>${l.Cantidad}</td>
-                      <td>$${Number(l.PrecioUnidad || 0).toFixed(2)}</td>
-                      <td>$${(Number(l.Cantidad) * Number(l.PrecioUnidad)).toFixed(2)}</td>
-                    </tr>
-                  `).join('')}
-                </tbody>
-              </table>
-              <div style="display:flex; justify-content:flex-end; gap:24px; margin-top:12px; font-size:13.5px; color:var(--color-gris-texto);">
-                <span>Abonado: <strong style="color:var(--color-texto);">$${abonoFactura.toFixed(2)}</strong></span>
-                <span>Saldo: <strong style="color:var(--color-texto);">$${saldoFactura.toFixed(2)}</strong></span>
-              </div>
-            </div>
-          </div>
-        `;
-      }).join('')}
+    <div class="card" id="lista-ventas">
+      ${renderGruposVenta(grupos, clientes)}
     </div>
   `;
 
-  // Expandir/colapsar detalle de cada venta al hacer click en el resumen
-  document.querySelectorAll('.fila-resumen-venta').forEach(fila => {
-    fila.addEventListener('click', () => {
-      document.getElementById(fila.dataset.target).classList.toggle('oculto');
+  function engancharListaVentas() {
+    document.querySelectorAll('.fila-resumen-venta').forEach(fila => {
+      fila.addEventListener('click', () => {
+        document.getElementById(fila.dataset.target).classList.toggle('oculto');
+      });
     });
+
+    document.querySelectorAll('.btn-registrar-abono').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const numFactura = btn.dataset.num;
+        const saldo = btn.dataset.saldo;
+        const montoTexto = prompt(`Saldo pendiente de ${numFactura}: $${saldo}\n\n¿Cuánto abona el cliente ahora?`, saldo);
+        if (montoTexto === null) return;
+        const monto = Number(montoTexto);
+        if (!monto || monto <= 0) { alert('Monto inválido'); return; }
+
+        btn.disabled = true;
+        btn.textContent = 'Guardando...';
+        const resultado = await Api.registrarAbono({ numFactura, monto });
+        if (resultado.ok) {
+          alert(`Abono registrado. Nuevo saldo: $${resultado.saldoRestante.toFixed(2)} (${resultado.estado})`);
+          renderSalida(contenedor);
+        } else {
+          btn.disabled = false;
+          btn.textContent = '+ Registrar Abono';
+        }
+      });
+    });
+
+    document.querySelectorAll('.btn-editar-venta').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        renderSalida(contenedor, btn.dataset.num);
+      });
+    });
+
+    document.querySelectorAll('.btn-recibo-venta').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const numFactura = btn.dataset.num;
+        btn.disabled = true;
+        btn.textContent = 'Generando...';
+        const resultado = await Api.generarRecibo(numFactura);
+        btn.disabled = false;
+        btn.textContent = '🧾 Recibo';
+
+        if (!resultado.ok) return;
+
+        const cliente = clientes.find(c => (c.Nombre || '').trim().toLowerCase() === (resultado.nombreCliente || '').trim().toLowerCase());
+        const mensaje = `Hola ${resultado.nombreCliente || ''}, aquí está tu recibo de la compra ${resultado.numFactura} por $${resultado.totalFactura.toFixed(2)}:\n${resultado.urlPdf}`;
+
+        if (cliente && cliente.Telefono) {
+          window.open(`https://wa.me/${soloDigitos(cliente.Telefono)}?text=${encodeURIComponent(mensaje)}`, '_blank');
+        } else {
+          window.open(`https://wa.me/?text=${encodeURIComponent(mensaje)}`, '_blank');
+        }
+      });
+    });
+  }
+
+  engancharListaVentas();
+
+  document.getElementById('venta-buscar-lista').addEventListener('input', (e) => {
+    const q = e.target.value.trim().toLowerCase();
+    let gruposFiltrados = grupos;
+    if (q) {
+      gruposFiltrados = {};
+      Object.entries(grupos).forEach(([num, lineas]) => {
+        const coincide = String(num).toLowerCase().includes(q) ||
+          lineas.some(l =>
+            String(l.Nombre || '').toLowerCase().includes(q) ||
+            String(l.CodigoDeProducto || '').toLowerCase().includes(q) ||
+            String(l.Descripcion || '').toLowerCase().includes(q)
+          );
+        if (coincide) gruposFiltrados[num] = lineas;
+      });
+    }
+    document.getElementById('lista-ventas').innerHTML = renderGruposVenta(gruposFiltrados, clientes);
+    engancharListaVentas();
   });
 
   const form = document.getElementById('form-nueva-venta');
   document.getElementById('venta-fecha').valueAsDate = new Date();
 
-  document.getElementById('btn-nueva-venta').addEventListener('click', () => form.classList.toggle('oculto'));
-  document.getElementById('btn-cancelar-venta').addEventListener('click', () => form.classList.add('oculto'));
-
-  // Autocompletar teléfono si el cliente ya existe
-  const inputClienteNombre = document.getElementById('venta-cliente-nombre');
-  inputClienteNombre.addEventListener('input', () => {
-    const clienteExistente = clientes.find(c => (c.Nombre || '').trim().toLowerCase() === inputClienteNombre.value.trim().toLowerCase());
-    if (clienteExistente && clienteExistente.Telefono) {
-      const partes = String(clienteExistente.Telefono).split(' ');
-      document.getElementById('venta-cod-pais').value = partes[0] || '+507';
-      document.getElementById('venta-telefono').value = partes.slice(1).join(' ') || '';
-    }
+  document.getElementById('btn-nueva-venta').addEventListener('click', () => {
+    if (editando) { renderSalida(contenedor); return; } // salir del modo edición y volver a "nueva"
+    form.classList.toggle('oculto');
   });
+  document.getElementById('btn-cancelar-venta').addEventListener('click', () => {
+    if (editando) { renderSalida(contenedor); } else { form.classList.add('oculto'); }
+  });
+
+  const inputClienteNombre = document.getElementById('venta-cliente-nombre');
+  const infoCliente = document.getElementById('venta-cliente-info');
+
+  function autocompletarCliente() {
+    const clienteExistente = clientes.find(c => (c.Nombre || '').trim().toLowerCase() === inputClienteNombre.value.trim().toLowerCase());
+    if (clienteExistente) {
+      if (clienteExistente.Telefono) {
+        const partes = String(clienteExistente.Telefono).split(' ');
+        document.getElementById('venta-cod-pais').value = partes[0] || '+507';
+        document.getElementById('venta-telefono').value = partes.slice(1).join(' ') || '';
+      }
+      infoCliente.textContent = '✓ Cliente existente — datos cargados';
+      infoCliente.style.color = 'var(--color-verde, #2e7d32)';
+    } else {
+      infoCliente.textContent = inputClienteNombre.value ? 'Cliente nuevo' : '';
+      infoCliente.style.color = 'var(--color-gris-texto)';
+    }
+  }
+  // 'input' cubre lo que se escribe; 'change' cubre la selección directa del datalist en más navegadores
+  inputClienteNombre.addEventListener('input', autocompletarCliente);
+  inputClienteNombre.addEventListener('change', autocompletarCliente);
+
+  // Precarga de datos si estamos editando
+  if (editando) {
+    const primeraLinea = grupos[facturaAEditar][0];
+    inputClienteNombre.value = primeraLinea.Nombre || '';
+    autocompletarCliente();
+    if (primeraLinea.Fecha) {
+      const f = new Date(primeraLinea.Fecha);
+      if (!isNaN(f.getTime())) document.getElementById('venta-fecha').valueAsDate = f;
+    }
+    const abonoActual = grupos[facturaAEditar].reduce((sum, l) => sum + (Number(l.Abono) || 0), 0);
+    document.getElementById('venta-abono').value = abonoActual.toFixed(2);
+  }
 
   function actualizarTotales() {
     const total = lineasVenta.reduce((sum, l) => sum + (l.cantidad * l.precio), 0);
@@ -795,10 +966,19 @@ async function renderSalida(contenedor) {
       return;
     }
 
-    // Suma lo ya agregado de este mismo producto en el carrito para validar contra el stock real
+    // Stock disponible real: si estamos editando, el stock ya refleja las cantidades de ESTA factura
+    // como aún "vendidas" (todavía no se revirtió), así que sumamos lo que esta factura ya tenía de ese producto
+    let stockDisponibleReal = Number(producto.StockActual);
+    if (editando) {
+      const yaEnFacturaOriginal = grupos[facturaAEditar]
+        .filter(l => l.CodigoDeProducto === producto.CodigoDeProducto)
+        .reduce((sum, l) => sum + Number(l.Cantidad), 0);
+      stockDisponibleReal += yaEnFacturaOriginal;
+    }
+
     const yaEnCarrito = lineasVenta.filter(l => l.codigo === producto.CodigoDeProducto).reduce((sum, l) => sum + l.cantidad, 0);
-    if (yaEnCarrito + cantidad > Number(producto.StockActual)) {
-      alert(`Stock insuficiente. Disponible: ${producto.StockActual}, ya tienes ${yaEnCarrito} de este producto en el carrito.`);
+    if (yaEnCarrito + cantidad > stockDisponibleReal) {
+      alert(`Stock insuficiente. Disponible: ${stockDisponibleReal}, ya tienes ${yaEnCarrito} de este producto en el carrito.`);
       return;
     }
 
@@ -842,7 +1022,7 @@ async function renderSalida(contenedor) {
     const telefonoCompleto = telefono ? `${codPais} ${telefono}` : '';
     const mes = calcularMes(fecha);
 
-    const resultado = await Api.registrarSalida({
+    const payload = {
       fecha, mes,
       nombreCliente,
       telefonoCliente: telefonoCompleto,
@@ -851,16 +1031,76 @@ async function renderSalida(contenedor) {
         codigo: l.codigo, descripcion: l.descripcion, talla: l.talla,
         cantidad: l.cantidad, precioUnidad: l.precio
       }))
-    });
+    };
+
+    const resultado = editando
+      ? await Api.editarSalida({ ...payload, numFactura: facturaAEditar })
+      : await Api.registrarSalida(payload);
 
     if (resultado.ok) {
       alert(`Venta guardada: ${resultado.numFactura}\nTotal: $${resultado.totalFactura.toFixed(2)}\nEstado: ${resultado.estado}`);
       renderSalida(contenedor);
     } else {
       btn.disabled = false;
-      btn.textContent = 'Guardar Venta';
+      btn.textContent = editando ? 'Guardar Cambios' : 'Guardar Venta';
     }
   });
+}
+
+// Construye el HTML de las tarjetas de facturas de venta (usado tanto en la carga inicial como al filtrar)
+function renderGruposVenta(grupos, clientes) {
+  const claves = Object.keys(grupos);
+  if (claves.length === 0) return '<p>Sin ventas aún</p>';
+
+  return claves.sort((a, b) => b.localeCompare(a)).map(numFactura => {
+    const lineas = grupos[numFactura];
+    const primera = lineas[0];
+    const totalFactura = lineas.reduce((sum, l) => sum + (Number(l.Cantidad) * Number(l.PrecioUnidad)), 0);
+    const abonoFactura = lineas.reduce((sum, l) => sum + (Number(l.Abono) || 0), 0);
+    const saldoFactura = totalFactura - abonoFactura;
+    const cliente = clientes.find(c => (c.Nombre || '').trim().toLowerCase() === (primera.Nombre || '').trim().toLowerCase());
+    const idGrupo = 'grupo-venta-' + String(numFactura).replace(/[^a-zA-Z0-9]/g, '');
+    return `
+      <div style="border:1px solid var(--color-borde); border-radius:var(--radio); margin-bottom:12px; overflow:hidden;">
+        <div class="fila-resumen-venta" data-target="${idGrupo}" style="display:flex; justify-content:space-between; align-items:center; padding:14px 16px; cursor:pointer; background:#faf7f0; flex-wrap:wrap; gap:8px;">
+          <div>
+            <strong>${numFactura}</strong>
+            <span style="color:var(--color-gris-texto); margin-left:10px;">${primera.Nombre || 'Sin nombre'} · ${formatearFecha(primera.Fecha)}</span>
+            <span class="badge ${primera.Estado === 'Pagado' ? 'badge-ok' : 'badge-pendiente'}" style="margin-left:8px;">${primera.Estado}</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+            ${cliente && cliente.Telefono ? `<a href="https://wa.me/${soloDigitos(cliente.Telefono)}" target="_blank" onclick="event.stopPropagation()" style="color:var(--color-rojo); text-decoration:none; font-weight:600; font-size:13px;">📱 WhatsApp</a>` : ''}
+            <button class="btn btn-secundario btn-recibo-venta" data-num="${numFactura}" style="padding:5px 12px; font-size:12.5px;">🧾 Recibo</button>
+            ${saldoFactura > 0 ? `<button class="btn btn-secundario btn-registrar-abono" data-num="${numFactura}" data-saldo="${saldoFactura.toFixed(2)}" style="padding:5px 12px; font-size:12.5px;">+ Abono</button>` : ''}
+            <button class="btn btn-secundario btn-editar-venta" data-num="${numFactura}" style="padding:5px 12px; font-size:12.5px;">✏️ Editar</button>
+            <strong>$${totalFactura.toFixed(2)}</strong>
+            <span style="color:var(--color-gris-texto); font-size:13px;">Ver detalle ▾</span>
+          </div>
+        </div>
+        <div id="${idGrupo}" class="oculto" style="padding:16px;">
+          <table>
+            <thead><tr><th>Código</th><th>Descripción</th><th>Talla</th><th>Cant.</th><th>Precio/u</th><th>Total línea</th></tr></thead>
+            <tbody>
+              ${lineas.map(l => `
+                <tr>
+                  <td>${l.CodigoDeProducto}</td>
+                  <td>${l.Descripcion}</td>
+                  <td>${l.Talla}</td>
+                  <td>${l.Cantidad}</td>
+                  <td>$${Number(l.PrecioUnidad || 0).toFixed(2)}</td>
+                  <td>$${(Number(l.Cantidad) * Number(l.PrecioUnidad)).toFixed(2)}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+          <div style="display:flex; justify-content:flex-end; gap:24px; margin-top:12px; font-size:13.5px; color:var(--color-gris-texto);">
+            <span>Abonado: <strong style="color:var(--color-texto);">$${abonoFactura.toFixed(2)}</strong></span>
+            <span>Saldo: <strong style="color:var(--color-texto);">$${saldoFactura.toFixed(2)}</strong></span>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
 }
 
 async function renderBalance(contenedor) {
