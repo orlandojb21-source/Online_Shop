@@ -49,12 +49,12 @@ async function renderDashboard(contenedor) {
   const valorInventario = productos.reduce((sum, p) => sum + (Number(p.Importe) || 0), 0);
 
   contenedor.innerHTML = `
-    <div class="card" style="display:flex; align-items:center; gap:16px; margin-bottom:20px; background:#111; color:#fff;">
-      <div style="width:52px; height:52px; border-radius:10px; background:var(--color-rojo); display:flex; align-items:center; justify-content:center; font-weight:800; font-size:22px; flex-shrink:0;">OS</div>
+    <div class="card" style="display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:20px; background:#111; color:#fff;">
       <div>
         <div style="font-size:20px; font-weight:800; letter-spacing:1px;">ONLINE SHOP</div>
         <div style="font-size:12.5px; color:#bbb;">Panel de control</div>
       </div>
+      <img src="img/logo-online-shop.png" alt="Online Shop" style="height:56px; width:56px; object-fit:contain; flex-shrink:0;">
     </div>
 
     <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:16px; margin-bottom:24px;">
