@@ -73,26 +73,10 @@ async function renderInventario(contenedor) {
   const res = await Api.obtener('Inventario');
   const data = res.data || [];
   contenedor.innerHTML = `
-    <div style="display:flex; justify-content:space-between; gap:16px; margin-bottom:16px; flex-wrap:wrap;">
-      <div style="display:flex; gap:10px; flex-wrap:wrap;">
-        <input type="text" id="inv-buscar" placeholder="🔎 Buscar por código, descripción o talla..." style="max-width:300px;">
-        <select id="inv-filtro-estado" style="max-width:170px;">
-          <option value="todos">Todos los estados</option>
-          <option value="en-stock">En stock (&gt;5)</option>
-          <option value="bajo">Stock bajo (1-5)</option>
-          <option value="agotado">Agotado (0)</option>
-        </select>
-        <select id="inv-orden" style="max-width:170px;">
-          <option value="ninguno">Sin ordenar</option>
-          <option value="az">Descripción A-Z</option>
-          <option value="za">Descripción Z-A</option>
-        </select>
-      </div>
+    <div style="display:flex; justify-content:space-between; gap:16px; margin-bottom:16px;">
+      <input type="text" id="inv-buscar" placeholder="🔎 Buscar por código, descripción o talla..." style="max-width:340px;">
       <button class="btn btn-primary" id="btn-nuevo-producto">+ Agregar Producto</button>
-      <button class="btn btn-secundario" id="btn-verificar-inventario">🔍 Verificar Sumas</button>
     </div>
-
-    <div class="card oculto" id="reporte-verificacion" style="margin-bottom:16px;"></div>
 
     <div class="card oculto" id="form-nuevo-producto">
       <h3 style="margin-bottom:16px;">Nuevo Producto</h3>
@@ -156,7 +140,7 @@ async function renderInventario(contenedor) {
           <td>${p.CodigoDeProducto}</td>
           <td>${p.Descripcion}</td>
           <td>${p.Talla}</td>
-          <td>${p.StockActual}${Number(p.StockActual) === 0 ? ' <span class="badge badge-alerta">Agotado</span>' : (Number(p.StockActual) <= 5 ? ' <span class="badge badge-alerta">Bajo</span>' : '')}</td>
+          <td>${p.StockActual}${Number(p.StockActual) <= 5 ? ' <span class="badge badge-alerta">Bajo</span>' : ''}</td>
           <td>$${Number(p.Importe || 0).toFixed(2)}</td>
         </tr>
       `).join('');
@@ -187,109 +171,16 @@ async function renderInventario(contenedor) {
 
   renderFilasInventario(data);
 
-  // Filtro combinado: texto + estado de stock + orden alfabético
-  function aplicarFiltrosInventario() {
-    const q = document.getElementById('inv-buscar').value.trim().toLowerCase();
-    const estado = document.getElementById('inv-filtro-estado').value;
-    const orden = document.getElementById('inv-orden').value;
-
-    let resultado = data.filter(p => {
-      const coincideTexto = !q ||
-        String(p.CodigoDeProducto || '').toLowerCase().includes(q) ||
-        String(p.Descripcion || '').toLowerCase().includes(q) ||
-        String(p.Talla || '').toLowerCase().includes(q);
-
-      const stock = Number(p.StockActual) || 0;
-      const coincideEstado =
-        estado === 'todos' ? true :
-        estado === 'en-stock' ? stock > 5 :
-        estado === 'bajo' ? (stock > 0 && stock <= 5) :
-        estado === 'agotado' ? stock === 0 : true;
-
-      return coincideTexto && coincideEstado;
-    });
-
-    if (orden === 'az') {
-      resultado = resultado.slice().sort((a, b) => String(a.Descripcion || '').localeCompare(String(b.Descripcion || '')));
-    } else if (orden === 'za') {
-      resultado = resultado.slice().sort((a, b) => String(b.Descripcion || '').localeCompare(String(a.Descripcion || '')));
-    }
-
-    renderFilasInventario(resultado);
-  }
-
-  document.getElementById('inv-buscar').addEventListener('input', aplicarFiltrosInventario);
-  document.getElementById('inv-filtro-estado').addEventListener('change', aplicarFiltrosInventario);
-  document.getElementById('inv-orden').addEventListener('change', aplicarFiltrosInventario);
-
-  document.getElementById('btn-verificar-inventario').addEventListener('click', async () => {
-    const btn = document.getElementById('btn-verificar-inventario');
-    const reporte = document.getElementById('reporte-verificacion');
-    btn.disabled = true;
-    btn.textContent = 'Verificando...';
-
-    const resultado = await Api.auditarInventario();
-
-    btn.disabled = false;
-    btn.textContent = '🔍 Verificar Sumas';
-
-    if (!resultado.ok) return;
-
-    const conAlerta = resultado.productos.filter(p => p.tieneAlgunaAlerta);
-
-    reporte.classList.remove('oculto');
-    if (conAlerta.length === 0) {
-      reporte.innerHTML = `
-        <h3 style="margin-bottom:8px;">✅ Verificación de Inventario</h3>
-        <p style="color:var(--color-gris-texto);">Se revisaron ${resultado.totalProductos} productos contra el historial completo de Entrada y Salida. No se encontraron desajustes en las Salidas registradas.</p>
-      `;
-    } else {
-      reporte.innerHTML = `
-        <h3 style="margin-bottom:8px;">⚠️ Verificación de Inventario</h3>
-        <p style="color:var(--color-gris-texto); margin-bottom:12px;">
-          Se revisaron ${resultado.totalProductos} productos. <strong>${conAlerta.length}</strong> tienen números que no cuadran con el historial real de Entrada/Salida.
-          Esto NO corrige nada automáticamente — solo te muestra la diferencia para que decidas si corregirla desde ✏️ Editar.
-        </p>
-        <table>
-          <thead><tr><th>Código</th><th>Descripción</th><th>Stock guardado</th><th>Salida guardada</th><th>Salida real (histórico)</th><th>Importe guardado</th><th>Importe según Entradas</th><th>Alerta</th></tr></thead>
-          <tbody>
-            ${conAlerta.map(p => `
-              <tr>
-                <td>${p.codigo}</td>
-                <td>${p.descripcion}</td>
-                <td>${p.stockGuardado}</td>
-                <td>${p.salidaGuardada}</td>
-                <td>${p.salidaCalculada}${p.salidaDesajustada ? ' ⚠️' : ''}</td>
-                <td>$${p.importeGuardado.toFixed(2)}</td>
-                <td>$${p.importeCalculado.toFixed(2)}${p.importeSospechoso ? ' ⚠️' : ''}</td>
-                <td style="font-size:12px; color:var(--color-gris-texto);">
-                  ${p.salidaDesajustada ? 'La Salida guardada no coincide con la suma real de ventas de este producto. ' : ''}
-                  ${p.importeSospechoso ? `El Importe guardado es menor que la suma de sus Entradas registradas. <button class="btn-corregir-importe" data-id="${p.id}" data-importe="${p.importeCalculado}" style="margin-left:6px; padding:2px 8px; font-size:11.5px; background:var(--color-rojo); color:#fff; border:none; border-radius:4px; cursor:pointer;">Corregir a $${p.importeCalculado.toFixed(2)}</button>` : ''}
-                </td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-        <p style="font-size:12px; color:var(--color-gris-texto); margin-top:10px;">
-          Nota: si un producto se cargó manualmente con "+ Agregar Producto" (sin pasar por Solicitud a Proveedor → Entregado),
-          es normal que no tenga historial de Entrada — eso no es un error y no aparece aquí.
-        </p>
-      `;
-      reporte.querySelectorAll('.btn-corregir-importe').forEach(b => {
-        b.addEventListener('click', async () => {
-          b.disabled = true;
-          b.textContent = 'Corrigiendo...';
-          const resultado = await Api.actualizar('Inventario', b.dataset.id, { Importe: Number(b.dataset.importe) });
-          if (resultado.ok) {
-            renderInventario(contenedor); // recarga todo, incluido el botón de verificar de nuevo
-          } else {
-            b.disabled = false;
-            b.textContent = 'Corregir a $' + Number(b.dataset.importe).toFixed(2);
-          }
-        });
-      });
-    }
-    reporte.scrollIntoView({ behavior: 'smooth' });
+  // Filtro en vivo por código, descripción o talla
+  document.getElementById('inv-buscar').addEventListener('input', (e) => {
+    const q = e.target.value.trim().toLowerCase();
+    if (!q) { renderFilasInventario(data); return; }
+    const filtrada = data.filter(p =>
+      String(p.CodigoDeProducto || '').toLowerCase().includes(q) ||
+      String(p.Descripcion || '').toLowerCase().includes(q) ||
+      String(p.Talla || '').toLowerCase().includes(q)
+    );
+    renderFilasInventario(filtrada);
   });
 
   document.getElementById('btn-nuevo-producto').addEventListener('click', () => {
@@ -368,14 +259,11 @@ async function renderSolicitudProveedor(contenedor) {
   const solicitudes = resSolicitudes.data || [];
   const proveedores = resProveedores.data || [];
   const inventario = resInventario.data || [];
-  // Solo se muestran las líneas AÚN NO entregadas — una vez "Recibido", la línea
-  // desaparece de esta vista y solo queda visible en Entrada de Mercancía.
-  const solicitudesPendientes = solicitudes.filter(s => s.Estado !== 'Recibido');
   lineasSolicitud = [];
 
   // Agrupar solicitudes por N°Solicitud para mostrarlas como una sola orden con varias líneas
   const grupos = {};
-  solicitudesPendientes.forEach(s => {
+  solicitudes.forEach(s => {
     const num = s['N°Solicitud'] || s.ID;
     if (!grupos[num]) grupos[num] = [];
     grupos[num].push(s);
@@ -1227,8 +1115,311 @@ function renderGruposVenta(grupos, clientes) {
   }).join('');
 }
 
+const MESES_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+
+function obtenerAño(fechaVal) {
+  const f = new Date(fechaVal);
+  return isNaN(f.getTime()) ? null : f.getFullYear();
+}
+function obtenerMesIndice(fechaVal) {
+  const f = new Date(fechaVal);
+  return isNaN(f.getTime()) ? null : f.getMonth();
+}
+function escaparTextoSvg(texto) {
+  return String(texto).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function calcularAgregadosBalance(entradas, salidas, vista, año) {
+  const coincideAño = (fecha) => año === 'todos' || obtenerAño(fecha) === año;
+
+  if (vista === 'mes') {
+    const porMes = MESES_ES.map(nombre => ({ label: nombre, ingreso: 0, egreso: 0 }));
+    entradas.forEach(e => {
+      const m = obtenerMesIndice(e.Fecha);
+      if (m !== null && coincideAño(e.Fecha)) porMes[m].egreso += Number(e.CostoTotal) || 0;
+    });
+    salidas.forEach(s => {
+      const m = obtenerMesIndice(s.Fecha);
+      if (m !== null && coincideAño(s.Fecha)) porMes[m].ingreso += Number(s.Abono) || 0;
+    });
+    let acumulado = 0;
+    const grupos = porMes.map(g => {
+      const saldoPeriodo = g.ingreso - g.egreso;
+      acumulado += saldoPeriodo;
+      return { label: g.label, ingreso: g.ingreso, egreso: g.egreso, saldoPeriodo, saldoAcumulado: acumulado };
+    });
+    return { grupos, mostrarAcumulado: true };
+  }
+
+  if (vista === 'semestre') {
+    const semestres = [{ label: '1er Semestre', ingreso: 0, egreso: 0 }, { label: '2do Semestre', ingreso: 0, egreso: 0 }];
+    entradas.forEach(e => {
+      const m = obtenerMesIndice(e.Fecha);
+      if (m !== null && coincideAño(e.Fecha)) semestres[m < 6 ? 0 : 1].egreso += Number(e.CostoTotal) || 0;
+    });
+    salidas.forEach(s => {
+      const m = obtenerMesIndice(s.Fecha);
+      if (m !== null && coincideAño(s.Fecha)) semestres[m < 6 ? 0 : 1].ingreso += Number(s.Abono) || 0;
+    });
+    let acumulado = 0;
+    const grupos = semestres.map(g => {
+      const saldoPeriodo = g.ingreso - g.egreso;
+      acumulado += saldoPeriodo;
+      return { label: g.label, ingreso: g.ingreso, egreso: g.egreso, saldoPeriodo, saldoAcumulado: acumulado };
+    });
+    return { grupos, mostrarAcumulado: true };
+  }
+
+  if (vista === 'año') {
+    const años = new Set();
+    entradas.forEach(e => { const a = obtenerAño(e.Fecha); if (a) años.add(a); });
+    salidas.forEach(s => { const a = obtenerAño(s.Fecha); if (a) años.add(a); });
+    const añosOrdenados = Array.from(años).sort((a, b) => a - b);
+    let acumulado = 0;
+    const grupos = añosOrdenados.map(a => {
+      const ingreso = salidas.filter(s => obtenerAño(s.Fecha) === a).reduce((sum, s) => sum + (Number(s.Abono) || 0), 0);
+      const egreso = entradas.filter(e => obtenerAño(e.Fecha) === a).reduce((sum, e) => sum + (Number(e.CostoTotal) || 0), 0);
+      const saldoPeriodo = ingreso - egreso;
+      acumulado += saldoPeriodo;
+      return { label: String(a), ingreso, egreso, saldoPeriodo, saldoAcumulado: acumulado };
+    });
+    return { grupos, mostrarAcumulado: true };
+  }
+
+  if (vista === 'producto') {
+    const codigos = new Set();
+    entradas.forEach(e => codigos.add(e.CodigoDeProducto));
+    salidas.forEach(s => codigos.add(s.CodigoDeProducto));
+    const grupos = Array.from(codigos).map(codigo => {
+      const entradasProd = entradas.filter(e => e.CodigoDeProducto === codigo && coincideAño(e.Fecha));
+      const salidasProd = salidas.filter(s => s.CodigoDeProducto === codigo && coincideAño(s.Fecha));
+      const descripcion = (salidasProd[0] || entradasProd[0] || {}).Descripcion || '';
+      const ingreso = salidasProd.reduce((sum, s) => sum + (Number(s.Abono) || 0), 0);
+      const egreso = entradasProd.reduce((sum, e) => sum + (Number(e.CostoTotal) || 0), 0);
+      return { label: `${codigo}${descripcion ? ' - ' + descripcion : ''}`, ingreso, egreso, saldoPeriodo: ingreso - egreso };
+    }).filter(g => g.ingreso > 0 || g.egreso > 0)
+      .sort((a, b) => (b.ingreso + b.egreso) - (a.ingreso + a.egreso));
+    return { grupos, mostrarAcumulado: false };
+  }
+
+  if (vista === 'total') {
+    const ingreso = salidas.filter(s => coincideAño(s.Fecha)).reduce((sum, s) => sum + (Number(s.Abono) || 0), 0);
+    const egreso = entradas.filter(e => coincideAño(e.Fecha)).reduce((sum, e) => sum + (Number(e.CostoTotal) || 0), 0);
+    return { grupos: [{ label: año === 'todos' ? 'Total histórico' : `Total ${año}`, ingreso, egreso, saldoPeriodo: ingreso - egreso }], mostrarAcumulado: false };
+  }
+
+  return { grupos: [], mostrarAcumulado: false };
+}
+
+function construirGraficoBarrasBalance(grupos, mostrarAcumulado, titulo) {
+  const series = [
+    { key: 'ingreso', label: 'Ingreso', color: '#8BC34A' },
+    { key: 'egreso', label: 'Egreso', color: '#1B5E20' },
+    { key: 'saldoPeriodo', label: mostrarAcumulado ? 'Saldo Mensual' : 'Ganancia', color: '#E67E22' }
+  ];
+  if (mostrarAcumulado) series.push({ key: 'saldoAcumulado', label: 'Saldo Acumulado', color: '#C62828' });
+
+  const anchoGrupo = 90;
+  const margenIzq = 60, margenDer = 20, margenSup = 40, margenInf = 70;
+  const alturaGrafico = 320;
+  const anchoGrafico = Math.max(grupos.length * anchoGrupo, 400);
+  const anchoTotal = anchoGrafico + margenIzq + margenDer;
+  const altoTotal = alturaGrafico + margenSup + margenInf + 30;
+
+  const todosValores = grupos.flatMap(g => series.map(s => g[s.key] || 0));
+  let maxVal = Math.max(0, ...todosValores);
+  let minVal = Math.min(0, ...todosValores);
+  if (maxVal === 0 && minVal === 0) maxVal = 100;
+  const rangoBruto = maxVal - minVal || 1;
+  maxVal += rangoBruto * 0.12;
+  minVal -= rangoBruto * 0.12;
+  if (minVal > 0) minVal = 0;
+  const rangoFinal = maxVal - minVal || 1;
+
+  const escalaY = (valor) => margenSup + alturaGrafico - ((valor - minVal) / rangoFinal) * alturaGrafico;
+  const yCero = escalaY(0);
+
+  const numLineas = 5;
+  let gridlinesSvg = '';
+  for (let i = 0; i <= numLineas; i++) {
+    const valor = minVal + (rangoFinal * i / numLineas);
+    const y = escalaY(valor);
+    gridlinesSvg += `
+      <line x1="${margenIzq}" y1="${y.toFixed(1)}" x2="${margenIzq + anchoGrafico}" y2="${y.toFixed(1)}" stroke="#e5e0d5" stroke-width="1" />
+      <text x="${margenIzq - 8}" y="${(y + 4).toFixed(1)}" font-size="11" fill="#888" text-anchor="end">${Math.round(valor)}</text>
+    `;
+  }
+
+  const anchoBarra = Math.min(16, (anchoGrupo - 20) / series.length);
+  let barrasSvg = '';
+  let etiquetasSvg = '';
+  const rotarEtiquetas = grupos.length > 8;
+
+  grupos.forEach((g, gi) => {
+    const xGrupoInicio = margenIzq + gi * anchoGrupo + (anchoGrupo - series.length * anchoBarra) / 2;
+    series.forEach((s, si) => {
+      const valor = g[s.key] || 0;
+      const x = xGrupoInicio + si * anchoBarra;
+      const y = escalaY(valor);
+      const alturaBarra = Math.abs(y - yCero);
+      const yBarra = valor >= 0 ? y : yCero;
+      barrasSvg += `<rect x="${x.toFixed(1)}" y="${yBarra.toFixed(1)}" width="${(anchoBarra - 2).toFixed(1)}" height="${Math.max(alturaBarra, 0.5).toFixed(1)}" fill="${s.color}"><title>${escaparTextoSvg(s.label)}: $${valor.toFixed(2)}</title></rect>`;
+    });
+    const xEtiqueta = margenIzq + gi * anchoGrupo + anchoGrupo / 2;
+    const yEtiqueta = margenSup + alturaGrafico + 18;
+    const etiquetaTexto = escaparTextoSvg(g.label.length > 18 ? g.label.slice(0, 16) + '…' : g.label);
+    etiquetasSvg += `<text x="${xEtiqueta.toFixed(1)}" y="${yEtiqueta}" font-size="11" fill="#555" text-anchor="${rotarEtiquetas ? 'end' : 'middle'}" transform="${rotarEtiquetas ? `rotate(-35 ${xEtiqueta.toFixed(1)} ${yEtiqueta})` : ''}">${etiquetaTexto}</text>`;
+  });
+
+  const ejeCeroSvg = `<line x1="${margenIzq}" y1="${yCero.toFixed(1)}" x2="${margenIzq + anchoGrafico}" y2="${yCero.toFixed(1)}" stroke="#999" stroke-width="1.5" />`;
+
+  let leyendaSvg = '';
+  let xLeyenda = margenIzq;
+  const yLeyenda = altoTotal - 14;
+  series.forEach(s => {
+    leyendaSvg += `<rect x="${xLeyenda}" y="${yLeyenda - 10}" width="10" height="10" fill="${s.color}" />`;
+    leyendaSvg += `<text x="${xLeyenda + 14}" y="${yLeyenda - 1}" font-size="11" fill="#444">${escaparTextoSvg(s.label)}</text>`;
+    xLeyenda += s.label.length * 6.5 + 40;
+  });
+
+  return `
+    <svg viewBox="0 0 ${anchoTotal} ${altoTotal}" width="${anchoTotal}" style="display:block;">
+      <text x="${anchoTotal / 2}" y="20" font-size="15" font-weight="bold" fill="#222" text-anchor="middle">${escaparTextoSvg(titulo)}</text>
+      ${gridlinesSvg}
+      ${barrasSvg}
+      ${ejeCeroSvg}
+      ${etiquetasSvg}
+      ${leyendaSvg}
+    </svg>
+  `;
+}
+
+function construirTablaBalance(grupos, mostrarAcumulado) {
+  if (grupos.length === 0) return '<p style="color:var(--color-gris-texto);">Sin datos para esta vista.</p>';
+  return `
+    <table>
+      <thead>
+        <tr>
+          <th>Periodo</th><th>Ingreso</th><th>Egreso</th><th>${mostrarAcumulado ? 'Saldo Periodo' : 'Ganancia'}</th>
+          ${mostrarAcumulado ? '<th>Saldo Acumulado</th>' : ''}
+        </tr>
+      </thead>
+      <tbody>
+        ${grupos.map(g => `
+          <tr>
+            <td>${g.label}</td>
+            <td>$${g.ingreso.toFixed(2)}</td>
+            <td>$${g.egreso.toFixed(2)}</td>
+            <td style="color:${g.saldoPeriodo >= 0 ? 'inherit' : 'var(--color-rojo)'};">$${g.saldoPeriodo.toFixed(2)}</td>
+            ${mostrarAcumulado ? `<td style="color:${g.saldoAcumulado >= 0 ? 'inherit' : 'var(--color-rojo)'};">$${g.saldoAcumulado.toFixed(2)}</td>` : ''}
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
 async function renderBalance(contenedor) {
-  contenedor.innerHTML = `<div class="card">Módulo de Balance mensual — se construye en el siguiente paso.</div>`;
+  const [resEntradas, resSalidas] = await Promise.all([
+    Api.obtener('Entrada'),
+    Api.obtener('Salida')
+  ]);
+  const entradas = resEntradas.data || [];
+  const salidas = resSalidas.data || [];
+
+  const añosDisponibles = Array.from(new Set(
+    [...entradas.map(e => obtenerAño(e.Fecha)), ...salidas.map(s => obtenerAño(s.Fecha))].filter(a => a !== null)
+  )).sort((a, b) => b - a);
+  const añoActual = new Date().getFullYear();
+  const añoPorDefecto = añosDisponibles.includes(añoActual) ? añoActual : (añosDisponibles[0] || añoActual);
+
+  contenedor.innerHTML = `
+    <div class="card" style="margin-bottom:16px;">
+      <div style="display:flex; gap:16px; flex-wrap:wrap; align-items:flex-end;">
+        <div class="form-group" style="margin:0;">
+          <label>Ver por</label>
+          <select id="balance-vista">
+            <option value="mes">Mes</option>
+            <option value="semestre">Semestre</option>
+            <option value="año">Año</option>
+            <option value="producto">Producto</option>
+            <option value="total">Total</option>
+          </select>
+        </div>
+        <div class="form-group" style="margin:0;" id="balance-contenedor-año">
+          <label>Año</label>
+          <select id="balance-año">
+            <option value="todos">Todos los años</option>
+            ${añosDisponibles.map(a => `<option value="${a}" ${a === añoPorDefecto ? 'selected' : ''}>${a}</option>`).join('')}
+          </select>
+        </div>
+        <button class="btn btn-secundario" id="btn-exportar-balance" style="margin-left:auto;">📄 Exportar PDF</button>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:16px;">
+      <div id="balance-grafico" style="overflow-x:auto;"></div>
+    </div>
+
+    <div class="card">
+      <div id="balance-tabla"></div>
+    </div>
+  `;
+
+  function actualizarVista() {
+    const vista = document.getElementById('balance-vista').value;
+    const añoRaw = document.getElementById('balance-año').value;
+    const año = añoRaw === 'todos' ? 'todos' : Number(añoRaw);
+
+    document.getElementById('balance-contenedor-año').style.display = (vista === 'año') ? 'none' : '';
+
+    const { grupos, mostrarAcumulado } = calcularAgregadosBalance(entradas, salidas, vista, año);
+
+    const etiquetaAño = año === 'todos' ? 'todos los años' : año;
+    const tituloVista = {
+      mes: `Balance mensual — ${etiquetaAño}`,
+      semestre: `Balance semestral — ${etiquetaAño}`,
+      año: 'Balance por año',
+      producto: `Balance por producto — ${etiquetaAño}`,
+      total: `Balance total — ${etiquetaAño}`
+    }[vista];
+
+    document.getElementById('balance-grafico').innerHTML = grupos.length === 0
+      ? '<p style="color:var(--color-gris-texto);">Sin datos para mostrar en esta vista.</p>'
+      : construirGraficoBarrasBalance(grupos, mostrarAcumulado, tituloVista);
+
+    document.getElementById('balance-tabla').innerHTML = construirTablaBalance(grupos, mostrarAcumulado);
+
+    contenedor._balanceActual = { grupos, mostrarAcumulado, titulo: tituloVista };
+  }
+
+  document.getElementById('balance-vista').addEventListener('change', actualizarVista);
+  document.getElementById('balance-año').addEventListener('change', actualizarVista);
+
+  document.getElementById('btn-exportar-balance').addEventListener('click', async () => {
+    const btn = document.getElementById('btn-exportar-balance');
+    const actual = contenedor._balanceActual;
+    if (!actual || actual.grupos.length === 0) { alert('No hay datos para exportar en esta vista'); return; }
+
+    btn.disabled = true;
+    btn.textContent = 'Generando PDF...';
+
+    const encabezados = ['Periodo', 'Ingreso', 'Egreso', actual.mostrarAcumulado ? 'Saldo Periodo' : 'Ganancia'];
+    if (actual.mostrarAcumulado) encabezados.push('Saldo Acumulado');
+
+    const filas = actual.grupos.map(g => {
+      const fila = [g.label, '$' + g.ingreso.toFixed(2), '$' + g.egreso.toFixed(2), '$' + g.saldoPeriodo.toFixed(2)];
+      if (actual.mostrarAcumulado) fila.push('$' + g.saldoAcumulado.toFixed(2));
+      return fila;
+    });
+
+    const resultado = await Api.generarReporte({ titulo: actual.titulo, encabezados, filas });
+    btn.disabled = false;
+    btn.textContent = '📄 Exportar PDF';
+    if (resultado.ok) window.open(resultado.urlPdf, '_blank');
+  });
+
+  actualizarVista();
 }
 
 async function renderProveedores(contenedor) {
