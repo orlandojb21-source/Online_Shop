@@ -264,7 +264,7 @@ async function renderInventario(contenedor) {
                 <td>$${p.importeCalculado.toFixed(2)}${p.importeSospechoso ? ' ⚠️' : ''}</td>
                 <td style="font-size:12px; color:var(--color-gris-texto);">
                   ${p.salidaDesajustada ? 'La Salida guardada no coincide con la suma real de ventas de este producto. ' : ''}
-                  ${p.importeSospechoso ? 'El Importe guardado es menor que la suma de sus Entradas registradas.' : ''}
+                  ${p.importeSospechoso ? `El Importe guardado es menor que la suma de sus Entradas registradas. <button class="btn-corregir-importe" data-id="${p.id}" data-importe="${p.importeCalculado}" style="margin-left:6px; padding:2px 8px; font-size:11.5px; background:var(--color-rojo); color:#fff; border:none; border-radius:4px; cursor:pointer;">Corregir a $${p.importeCalculado.toFixed(2)}</button>` : ''}
                 </td>
               </tr>
             `).join('')}
@@ -275,6 +275,19 @@ async function renderInventario(contenedor) {
           es normal que no tenga historial de Entrada — eso no es un error y no aparece aquí.
         </p>
       `;
+      reporte.querySelectorAll('.btn-corregir-importe').forEach(b => {
+        b.addEventListener('click', async () => {
+          b.disabled = true;
+          b.textContent = 'Corrigiendo...';
+          const resultado = await Api.actualizar('Inventario', b.dataset.id, { Importe: Number(b.dataset.importe) });
+          if (resultado.ok) {
+            renderInventario(contenedor); // recarga todo, incluido el botón de verificar de nuevo
+          } else {
+            b.disabled = false;
+            b.textContent = 'Corregir a $' + Number(b.dataset.importe).toFixed(2);
+          }
+        });
+      });
     }
     reporte.scrollIntoView({ behavior: 'smooth' });
   });
