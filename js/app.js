@@ -58,9 +58,9 @@ async function renderDashboard(contenedor) {
     </div>
 
     <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:16px; margin-bottom:24px;">
-      <button class="btn btn-primary" id="btn-acceso-ventas" style="padding:18px; font-size:15px;">🧾 Ir a Ventas</button>
+      <button class="btn btn-primary" id="btn-acceso-ventas" style="padding:18px; font-size:15px;">🧾 Ventas</button>
       <button class="btn btn-primary" id="btn-acceso-solicitud" style="padding:18px; font-size:15px;">📦 Solicitud a Proveedor</button>
-      <button class="btn btn-primary" id="btn-acceso-stock" style="padding:18px; font-size:15px;">📊 Ver lo que tengo en stock</button>
+      <button class="btn btn-primary" id="btn-acceso-stock" style="padding:18px; font-size:15px;">📊 Stock</button>
     </div>
 
     <div class="stats-grid">
