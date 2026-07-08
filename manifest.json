@@ -1,0 +1,16 @@
+{
+  "name": "Online Shop",
+  "short_name": "Online Shop",
+  "description": "Gestión de inventario y ventas — Online Shop",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#faf7f0",
+  "theme_color": "#E8121C",
+  "icons": [
+    { "src": "img/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "img/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "img/icon-144.png", "sizes": "144x144", "type": "image/png", "purpose": "any" }
+  ]
+}
