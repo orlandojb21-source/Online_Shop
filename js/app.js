@@ -24,6 +24,8 @@ function irAModulo(modulo, filtroInventario) {
 }
 
 let filtroInventarioInicial = null;
+let busquedaInventarioInicial = null; // texto a precargar en el buscador de Inventario (desde la búsqueda global)
+let busquedaVentasInicial = null;     // texto a precargar en el buscador de Ventas (desde la búsqueda global)
 
 async function cargarModulo(modulo) {
   const contenedor = document.getElementById('contenido-modulo');
@@ -42,11 +44,32 @@ async function cargarModulo(modulo) {
 
 // ============ DASHBOARD ============
 async function renderDashboard(contenedor) {
-  const inv = await Api.obtener('Inventario');
-  const productos = inv.data || [];
+  const [resInv, resSalida] = await Promise.all([Api.obtener('Inventario'), Api.obtener('Salida')]);
+  const productos = resInv.data || [];
+  const salidas = (resSalida.data || []).filter(s => s.Cancelado !== true);
+
   const stockTotal = productos.reduce((sum, p) => sum + (Number(p.StockActual) || 0), 0);
-  const stockBajo = productos.filter(p => Number(p.StockActual) <= 5 && Number(p.StockActual) > 0).length;
+  const agotados = productos.filter(p => Number(p.StockActual) === 0);
+  const bajos = productos.filter(p => Number(p.StockActual) > 0 && Number(p.StockActual) <= 5);
+  const stockBajo = bajos.length;
   const valorInventario = productos.reduce((sum, p) => sum + (Number(p.Importe) || 0), 0);
+
+  const ventasPorProducto = {};
+  salidas.forEach(s => {
+    const key = s.CodigoDeProducto;
+    if (!key) return;
+    if (!ventasPorProducto[key]) ventasPorProducto[key] = { codigo: key, descripcion: s.Descripcion, total: 0 };
+    ventasPorProducto[key].total += (Number(s.Cantidad) || 0) * (Number(s.PrecioUnidad) || 0);
+  });
+  const topProductos = Object.values(ventasPorProducto).sort((a, b) => b.total - a.total).slice(0, 5);
+
+  const ventasPorCliente = {};
+  salidas.forEach(s => {
+    const key = s.Nombre || 'Sin nombre';
+    if (!ventasPorCliente[key]) ventasPorCliente[key] = { nombre: key, total: 0 };
+    ventasPorCliente[key].total += (Number(s.Cantidad) || 0) * (Number(s.PrecioUnidad) || 0);
+  });
+  const topClientes = Object.values(ventasPorCliente).sort((a, b) => b.total - a.total).slice(0, 5);
 
   contenedor.innerHTML = `
     <div class="card" style="display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:20px; background:#111; color:#fff;">
@@ -54,13 +77,55 @@ async function renderDashboard(contenedor) {
         <div style="font-size:26px; font-weight:800; letter-spacing:1px;">ONLINE SHOP</div>
         <div style="font-size:14px; color:#bbb;">Panel de control</div>
       </div>
-      <img src="img/logo-online-shop.png" alt="Online Shop" style="height:150px; width:150px; object-fit:contain; flex-shrink:0;">
+      <img src="img/logo-online-shop.png" alt="Online Shop" style="height:80px; width:80px; object-fit:contain; flex-shrink:0;">
     </div>
 
     <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:16px; margin-bottom:24px;">
       <button class="btn btn-primary" id="btn-acceso-ventas" style="padding:18px; font-size:15px;">🧾 Ir a Ventas</button>
       <button class="btn btn-primary" id="btn-acceso-solicitud" style="padding:18px; font-size:15px;">📦 Solicitud a Proveedor</button>
       <button class="btn btn-primary" id="btn-acceso-stock" style="padding:18px; font-size:15px;">📊 Ver lo que tengo en stock</button>
+    </div>
+
+    ${(agotados.length > 0 || bajos.length > 0) ? `
+    <div class="card" style="margin-bottom:20px; border-left:4px solid var(--color-rojo);">
+      <h3 style="margin-bottom:12px;">⚠️ Alertas de Stock</h3>
+      <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px;">
+        <div>
+          <div style="font-size:12.5px; color:var(--color-gris-texto); margin-bottom:6px;">Agotados (${agotados.length})</div>
+          ${agotados.length === 0 ? '<p style="font-size:13px; color:var(--color-gris-texto);">Ninguno 🎉</p>' : agotados.slice(0, 6).map(p => `
+            <div style="font-size:13.5px; padding:4px 0; border-bottom:1px solid var(--color-borde);">${p.CodigoDeProducto} — ${p.Descripcion}</div>
+          `).join('')}
+          ${agotados.length > 6 ? `<div style="font-size:12px; color:var(--color-gris-texto); margin-top:4px;">+${agotados.length - 6} más...</div>` : ''}
+        </div>
+        <div>
+          <div style="font-size:12.5px; color:var(--color-gris-texto); margin-bottom:6px;">Stock bajo (${bajos.length})</div>
+          ${bajos.length === 0 ? '<p style="font-size:13px; color:var(--color-gris-texto);">Ninguno 🎉</p>' : bajos.slice(0, 6).map(p => `
+            <div style="font-size:13.5px; padding:4px 0; border-bottom:1px solid var(--color-borde);">${p.CodigoDeProducto} — ${p.Descripcion} <span class="badge badge-alerta">${p.StockActual}</span></div>
+          `).join('')}
+          ${bajos.length > 6 ? `<div style="font-size:12px; color:var(--color-gris-texto); margin-top:4px;">+${bajos.length - 6} más...</div>` : ''}
+        </div>
+      </div>
+    </div>` : ''}
+
+    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:16px; margin-bottom:24px;">
+      <div class="card">
+        <h3 style="margin-bottom:12px;">🏆 Top 5 Productos</h3>
+        ${topProductos.length === 0 ? '<p style="font-size:13px; color:var(--color-gris-texto);">Aún sin ventas</p>' : topProductos.map((p, i) => `
+          <div style="display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid var(--color-borde); font-size:13.5px;">
+            <span>${i + 1}. ${p.codigo} — ${p.descripcion}</span>
+            <strong>$${p.total.toFixed(2)}</strong>
+          </div>
+        `).join('')}
+      </div>
+      <div class="card">
+        <h3 style="margin-bottom:12px;">👤 Top 5 Clientes</h3>
+        ${topClientes.length === 0 ? '<p style="font-size:13px; color:var(--color-gris-texto);">Aún sin ventas</p>' : topClientes.map((c, i) => `
+          <div style="display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid var(--color-borde); font-size:13.5px;">
+            <span>${i + 1}. ${c.nombre}</span>
+            <strong>$${c.total.toFixed(2)}</strong>
+          </div>
+        `).join('')}
+      </div>
     </div>
 
     <div class="stats-grid">
@@ -241,10 +306,12 @@ async function renderInventario(contenedor) {
     renderFilasInventario(resultado);
   }
 
-  // Si venimos de un acceso rápido del Dashboard (ej. "Ver lo que tengo en stock"), aplicamos el filtro de una vez
-  if (filtroInventarioInicial) {
-    document.getElementById('inv-filtro-estado').value = filtroInventarioInicial;
+  // Si venimos de un acceso rápido del Dashboard o de la búsqueda global, aplicamos el filtro/texto de una vez
+  if (filtroInventarioInicial || busquedaInventarioInicial) {
+    if (filtroInventarioInicial) document.getElementById('inv-filtro-estado').value = filtroInventarioInicial;
+    if (busquedaInventarioInicial) document.getElementById('inv-buscar').value = busquedaInventarioInicial;
     filtroInventarioInicial = null;
+    busquedaInventarioInicial = null;
     aplicarFiltrosInventario();
   }
 
@@ -488,7 +555,7 @@ async function renderSolicitudProveedor(contenedor) {
                 ${!todoRecibido ? `<button class="btn btn-primary btn-entregado-grupo" data-num="${numSolicitud}" style="padding:6px 14px; font-size:13px;">Marcar todo como Entregado</button>` : ''}
               </div>
               <table>
-                <thead><tr><th>Código</th><th>Descripción</th><th>Talla</th><th>Cant.</th><th>Total</th><th>Estado</th></tr></thead>
+                <thead><tr><th>Código</th><th>Descripción</th><th>Talla</th><th>Cant.</th><th>Total</th><th>Estado</th><th></th></tr></thead>
                 <tbody>
                   ${lineas.map(l => `
                     <tr>
@@ -497,7 +564,8 @@ async function renderSolicitudProveedor(contenedor) {
                       <td>${l.Talla}</td>
                       <td>${l.Cantidad}</td>
                       <td>$${Number(l.TotalDeCosto || 0).toFixed(2)}</td>
-                      <td><span class="badge ${l.Estado === 'Recibido' ? 'badge-ok' : 'badge-alerta'}">${l.Estado}</span></td>
+                      <td><span class="badge badge-alerta">${l.Estado}</span></td>
+                      <td><button class="btn btn-secundario btn-entregado-linea" data-id="${l.ID}" style="padding:4px 10px; font-size:12px;">Recibido</button></td>
                     </tr>
                   `).join('')}
                 </tbody>
@@ -642,6 +710,41 @@ async function renderSolicitudProveedor(contenedor) {
     }
 
     renderSolicitudProveedor(contenedor);
+  });
+
+  // Botón "Recibido" por línea individual: permite recepción PARCIAL de una solicitud
+  document.querySelectorAll('.btn-entregado-linea').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = btn.dataset.id;
+      const linea = solicitudesPendientes.find(l => l.ID === id);
+      if (!linea) return;
+
+      const numFactura = prompt(`N° de Factura de Compra para ${linea.Descripcion} (${linea.CodigoDeProducto}):`);
+      if (numFactura === null) return;
+
+      btn.disabled = true;
+      btn.textContent = 'Procesando...';
+
+      const hoy = new Date();
+      const fechaISO = hoy.toISOString().split('T')[0];
+      const mes = calcularMes(fechaISO);
+
+      const resultado = await Api.registrarEntrada({
+        numFactura, mes, fecha: fechaISO,
+        codigo: linea.CodigoDeProducto,
+        descripcion: linea.Descripcion,
+        talla: linea.Talla,
+        lote: linea['N°Lote'],
+        proveedor: linea.NombreDeProveedor,
+        cantidad: Number(linea.Cantidad),
+        costoPorUnidad: Number(linea.PrecioUnidad)
+      });
+      if (resultado.ok) {
+        await Api.actualizar('SolicitudProveedor', linea.ID, { Estado: 'Recibido' });
+      }
+
+      renderSolicitudProveedor(contenedor);
+    });
   });
 
   // Botón "Marcar todo como Entregado": convierte TODAS las líneas de esa solicitud en Entradas reales
@@ -941,6 +1044,25 @@ async function renderSalida(contenedor, facturaAEditar = null) {
       });
     });
 
+    document.querySelectorAll('.btn-cancelar-venta').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const numFactura = btn.dataset.num;
+        const confirmar = confirm(`¿Cancelar la venta ${numFactura}? El stock vendido se devolverá a Inventario. La factura queda en el historial marcada como "Cancelada" y no se puede deshacer.`);
+        if (!confirmar) return;
+
+        btn.disabled = true;
+        btn.textContent = 'Cancelando...';
+        const resultado = await Api.cancelarSalida(numFactura);
+        if (resultado.ok) {
+          renderSalida(contenedor);
+        } else {
+          btn.disabled = false;
+          btn.textContent = '🚫 Cancelar';
+        }
+      });
+    });
+
     document.querySelectorAll('.btn-descargar-recibo').forEach(btn => {
       btn.addEventListener('click', async (e) => {
         e.stopPropagation();
@@ -978,8 +1100,8 @@ async function renderSalida(contenedor, facturaAEditar = null) {
 
   engancharListaVentas();
 
-  document.getElementById('venta-buscar-lista').addEventListener('input', (e) => {
-    const q = e.target.value.trim().toLowerCase();
+  function aplicarBusquedaVentas() {
+    const q = document.getElementById('venta-buscar-lista').value.trim().toLowerCase();
     let gruposFiltrados = grupos;
     if (q) {
       gruposFiltrados = {};
@@ -995,7 +1117,16 @@ async function renderSalida(contenedor, facturaAEditar = null) {
     }
     document.getElementById('lista-ventas').innerHTML = renderGruposVenta(gruposFiltrados, clientes);
     engancharListaVentas();
-  });
+  }
+
+  document.getElementById('venta-buscar-lista').addEventListener('input', aplicarBusquedaVentas);
+
+  // Si venimos de la búsqueda global con un texto (cliente, código o N° de factura), lo aplicamos de una vez
+  if (busquedaVentasInicial) {
+    document.getElementById('venta-buscar-lista').value = busquedaVentasInicial;
+    busquedaVentasInicial = null;
+    aplicarBusquedaVentas();
+  }
 
   const form = document.getElementById('form-nueva-venta');
   document.getElementById('venta-fecha').valueAsDate = new Date();
@@ -1208,25 +1339,27 @@ function renderGruposVenta(grupos, clientes) {
   return claves.sort((a, b) => b.localeCompare(a)).map(numFactura => {
     const lineas = grupos[numFactura];
     const primera = lineas[0];
+    const cancelada = lineas.some(l => l.Cancelado === true);
     const totalFactura = lineas.reduce((sum, l) => sum + (Number(l.Cantidad) * Number(l.PrecioUnidad)), 0);
     const abonoFactura = lineas.reduce((sum, l) => sum + (Number(l.Abono) || 0), 0);
     const saldoFactura = totalFactura - abonoFactura;
     const cliente = clientes.find(c => (c.Nombre || '').trim().toLowerCase() === (primera.Nombre || '').trim().toLowerCase());
     const idGrupo = 'grupo-venta-' + String(numFactura).replace(/[^a-zA-Z0-9]/g, '');
     return `
-      <div style="border:1px solid var(--color-borde); border-radius:var(--radio); margin-bottom:12px; overflow:hidden;">
+      <div style="border:1px solid var(--color-borde); border-radius:var(--radio); margin-bottom:12px; overflow:hidden; ${cancelada ? 'opacity:0.6;' : ''}">
         <div class="fila-resumen-venta" data-target="${idGrupo}" style="display:flex; justify-content:space-between; align-items:center; padding:14px 16px; cursor:pointer; background:#faf7f0; flex-wrap:wrap; gap:8px;">
           <div>
-            <strong>${numFactura}</strong>
+            <strong style="${cancelada ? 'text-decoration:line-through;' : ''}">${numFactura}</strong>
             <span style="color:var(--color-gris-texto); margin-left:10px;">${primera.Nombre || 'Sin nombre'} · ${formatearFecha(primera.Fecha)}</span>
-            <span class="badge ${primera.Estado === 'Pagado' ? 'badge-ok' : 'badge-pendiente'}" style="margin-left:8px;">${primera.Estado}</span>
+            <span class="badge ${cancelada ? 'badge-pendiente' : (primera.Estado === 'Pagado' ? 'badge-ok' : 'badge-pendiente')}" style="margin-left:8px;">${cancelada ? 'Cancelada' : primera.Estado}</span>
           </div>
           <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
             ${cliente && cliente.Telefono ? `<a href="https://wa.me/${soloDigitos(cliente.Telefono)}" target="_blank" onclick="event.stopPropagation()" style="color:var(--color-rojo); text-decoration:none; font-weight:600; font-size:13px;">📱 WhatsApp</a>` : ''}
             <button class="btn btn-secundario btn-descargar-recibo" data-num="${numFactura}" style="padding:5px 12px; font-size:12.5px;">⬇️ Recibo</button>
-            ${cliente && cliente.Telefono ? `<button class="btn btn-secundario btn-recibo-whatsapp" data-num="${numFactura}" style="padding:5px 12px; font-size:12.5px;">📲 Enviar Recibo</button>` : ''}
-            ${saldoFactura > 0 ? `<button class="btn btn-secundario btn-registrar-abono" data-num="${numFactura}" data-saldo="${saldoFactura.toFixed(2)}" style="padding:5px 12px; font-size:12.5px;">+ Abono</button>` : ''}
-            <button class="btn btn-secundario btn-editar-venta" data-num="${numFactura}" style="padding:5px 12px; font-size:12.5px;">✏️ Editar</button>
+            ${!cancelada && cliente && cliente.Telefono ? `<button class="btn btn-secundario btn-recibo-whatsapp" data-num="${numFactura}" style="padding:5px 12px; font-size:12.5px;">📲 Enviar Recibo</button>` : ''}
+            ${!cancelada && saldoFactura > 0 ? `<button class="btn btn-secundario btn-registrar-abono" data-num="${numFactura}" data-saldo="${saldoFactura.toFixed(2)}" style="padding:5px 12px; font-size:12.5px;">+ Abono</button>` : ''}
+            ${!cancelada ? `<button class="btn btn-secundario btn-editar-venta" data-num="${numFactura}" style="padding:5px 12px; font-size:12.5px;">✏️ Editar</button>` : ''}
+            ${!cancelada ? `<button class="btn btn-secundario btn-cancelar-venta" data-num="${numFactura}" style="padding:5px 12px; font-size:12.5px; color:var(--color-rojo); border-color:var(--color-rojo);">🚫 Cancelar</button>` : ''}
             <strong>$${totalFactura.toFixed(2)}</strong>
             <span style="color:var(--color-gris-texto); font-size:13px;">Ver detalle ▾</span>
           </div>
@@ -1248,8 +1381,10 @@ function renderGruposVenta(grupos, clientes) {
             </tbody>
           </table>
           <div style="display:flex; justify-content:flex-end; gap:24px; margin-top:12px; font-size:13.5px; color:var(--color-gris-texto);">
+            ${cancelada ? '<span style="color:var(--color-rojo); font-weight:600;">Esta venta fue cancelada — el stock fue devuelto a Inventario.</span>' : `
             <span>Abonado: <strong style="color:var(--color-texto);">$${abonoFactura.toFixed(2)}</strong></span>
             <span>Saldo: <strong style="color:var(--color-texto);">$${saldoFactura.toFixed(2)}</strong></span>
+            `}
           </div>
         </div>
       </div>
@@ -1271,7 +1406,8 @@ function escaparTextoSvg(texto) {
   return String(texto).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-function calcularAgregadosBalance(entradas, salidas, vista, año) {
+function calcularAgregadosBalance(entradas, salidasConCanceladas, vista, año) {
+  const salidas = salidasConCanceladas.filter(s => s.Cancelado !== true); // las canceladas no cuentan como ingreso real
   const coincideAño = (fecha) => año === 'todos' || obtenerAño(fecha) === año;
 
   if (vista === 'mes') {
@@ -1693,5 +1829,122 @@ function soloDigitos(texto) {
   return String(texto).replace(/\D/g, '');
 }
 
-// Cargar dashboard al iniciar
-cargarModulo('dashboard');
+// ============ BÚSQUEDA GLOBAL (clientes, productos, facturas) ============
+let cacheBusquedaGlobal = null;
+
+async function obtenerCacheBusquedaGlobal() {
+  if (cacheBusquedaGlobal) return cacheBusquedaGlobal;
+  const [resClientes, resInventario, resSalida] = await Promise.all([
+    Api.obtener('Cliente'), Api.obtener('Inventario'), Api.obtener('Salida')
+  ]);
+  cacheBusquedaGlobal = {
+    clientes: resClientes.data || [],
+    productos: resInventario.data || [],
+    facturas: Array.from(new Set((resSalida.data || []).map(s => s['N°FacturaVenta']))).filter(Boolean)
+  };
+  return cacheBusquedaGlobal;
+}
+
+function inicializarBusquedaGlobal() {
+  const input = document.getElementById('busqueda-global');
+  const resultados = document.getElementById('busqueda-global-resultados');
+  if (!input || !resultados) return;
+
+  let timeoutId = null;
+  input.addEventListener('input', () => {
+    clearTimeout(timeoutId);
+    const q = input.value.trim().toLowerCase();
+    if (q.length < 2) { resultados.classList.add('oculto'); resultados.innerHTML = ''; return; }
+
+    timeoutId = setTimeout(async () => {
+      const cache = await obtenerCacheBusquedaGlobal();
+      const clientesMatch = cache.clientes.filter(c => String(c.Nombre || '').toLowerCase().includes(q)).slice(0, 5);
+      const productosMatch = cache.productos.filter(p =>
+        String(p.CodigoDeProducto || '').toLowerCase().includes(q) || String(p.Descripcion || '').toLowerCase().includes(q)
+      ).slice(0, 5);
+      const facturasMatch = cache.facturas.filter(f => String(f).toLowerCase().includes(q)).slice(0, 5);
+
+      if (clientesMatch.length === 0 && productosMatch.length === 0 && facturasMatch.length === 0) {
+        resultados.innerHTML = '<div style="padding:10px 14px; font-size:13px; color:var(--color-gris-texto);">Sin resultados</div>';
+      } else {
+        resultados.innerHTML = `
+          ${clientesMatch.length ? '<div class="busqueda-categoria">Clientes</div>' + clientesMatch.map(c => `<div class="busqueda-resultado" data-tipo="cliente" data-valor="${escaparTextoSvg(c.Nombre)}">👤 ${escaparTextoSvg(c.Nombre)}</div>`).join('') : ''}
+          ${productosMatch.length ? '<div class="busqueda-categoria">Productos</div>' + productosMatch.map(p => `<div class="busqueda-resultado" data-tipo="producto" data-valor="${escaparTextoSvg(p.CodigoDeProducto)}">📦 ${escaparTextoSvg(p.CodigoDeProducto)} — ${escaparTextoSvg(p.Descripcion)}</div>`).join('') : ''}
+          ${facturasMatch.length ? '<div class="busqueda-categoria">Facturas</div>' + facturasMatch.map(f => `<div class="busqueda-resultado" data-tipo="factura" data-valor="${escaparTextoSvg(f)}">🧾 ${escaparTextoSvg(f)}</div>`).join('') : ''}
+        `;
+      }
+      resultados.classList.remove('oculto');
+
+      resultados.querySelectorAll('.busqueda-resultado').forEach(el => {
+        el.addEventListener('click', () => {
+          const tipo = el.dataset.tipo;
+          const valor = el.dataset.valor;
+          input.value = '';
+          resultados.classList.add('oculto');
+          if (tipo === 'cliente' || tipo === 'factura') {
+            busquedaVentasInicial = valor;
+            irAModulo('salida');
+          } else if (tipo === 'producto') {
+            busquedaInventarioInicial = valor;
+            irAModulo('inventario');
+          }
+        });
+      });
+    }, 200);
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!input.contains(e.target) && !resultados.contains(e.target)) resultados.classList.add('oculto');
+  });
+}
+inicializarBusquedaGlobal();
+
+
+// Esta función la llama Google Identity Services automáticamente cuando alguien
+// completa el login (referenciada por data-callback en el div #g_id_onload de index.html)
+function manejarLoginGoogle(response) {
+  const idToken = response.credential;
+  document.getElementById('login-error').classList.add('oculto');
+  document.getElementById('login-cargando').classList.remove('oculto');
+
+  Api.verificarSesion(idToken).then(resultado => {
+    document.getElementById('login-cargando').classList.add('oculto');
+    if (resultado.ok) {
+      // sessionStorage (no localStorage): la sesión dura mientras la pestaña esté abierta, más seguro
+      sessionStorage.setItem('online_shop_sesion', JSON.stringify({ email: resultado.email, nombre: resultado.nombre, idToken }));
+      mostrarApp(resultado);
+    } else {
+      const err = document.getElementById('login-error');
+      err.textContent = resultado.error || 'No se pudo iniciar sesión';
+      err.classList.remove('oculto');
+    }
+  });
+}
+
+function mostrarApp(sesion) {
+  document.getElementById('pantalla-login').classList.add('oculto');
+  document.getElementById('app-layout').classList.remove('oculto');
+  document.getElementById('sesion-usuario-email').textContent = sesion.nombre || sesion.email;
+  cargarModulo('dashboard');
+}
+
+function cerrarSesion() {
+  sessionStorage.removeItem('online_shop_sesion');
+  location.reload();
+}
+
+const btnCerrarSesion = document.getElementById('btn-cerrar-sesion');
+if (btnCerrarSesion) btnCerrarSesion.addEventListener('click', cerrarSesion);
+
+// Al cargar la página: si ya hay sesión guardada en esta pestaña, entra directo sin pedir login otra vez
+(function iniciarSesionSiExiste() {
+  const guardada = sessionStorage.getItem('online_shop_sesion');
+  if (guardada) {
+    try {
+      mostrarApp(JSON.parse(guardada));
+    } catch (e) {
+      sessionStorage.removeItem('online_shop_sesion');
+    }
+  }
+  // Si no hay sesión guardada, la app se queda en la pantalla de login esperando el botón de Google
+})();
