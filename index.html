@@ -19,9 +19,28 @@
 <meta name="apple-mobile-web-app-title" content="Online Shop">
 
 <link rel="stylesheet" href="css/styles.css">
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
-<div class="app-layout">
+
+<!-- PANTALLA DE LOGIN -->
+<div id="pantalla-login" style="position:fixed; inset:0; background:var(--color-crema); display:flex; align-items:center; justify-content:center; flex-direction:column; gap:18px; z-index:1000; text-align:center; padding:20px;">
+  <img src="img/logo-online-shop.png" alt="Online Shop" style="width:110px; height:110px;">
+  <h2 style="font-size:22px; letter-spacing:1px;">ONLINE SHOP</h2>
+  <p style="color:var(--color-gris-texto); font-size:13.5px; margin-top:-10px;">Inicia sesión para continuar</p>
+
+  <!-- REEMPLAZA data-client_id con tu propio OAuth Client ID de Google Cloud Console -->
+  <div id="g_id_onload"
+       data-client_id="TU_CLIENT_ID_AQUI.apps.googleusercontent.com"
+       data-callback="manejarLoginGoogle">
+  </div>
+  <div class="g_id_signin" data-type="standard" data-theme="outline" data-size="large" data-text="signin_with"></div>
+
+  <p id="login-error" class="oculto" style="color:var(--color-rojo); font-size:13.5px; max-width:320px;"></p>
+  <div id="login-cargando" class="oculto" style="color:var(--color-gris-texto); font-size:13.5px;">Verificando...</div>
+</div>
+
+<div class="app-layout oculto" id="app-layout">
   <!-- SIDEBAR -->
   <aside class="sidebar">
     <div class="sidebar-logo">ONLINE<span>.</span>SHOP</div>
@@ -34,11 +53,19 @@
       <div class="nav-item" data-modulo="balance"><span class="nav-icon">💰</span><span class="nav-texto">Balance</span><span class="nav-texto-corto">Balance</span></div>
       <div class="nav-item" data-modulo="proveedores"><span class="nav-icon">🏭</span><span class="nav-texto">Proveedores</span><span class="nav-texto-corto">Proveedor</span></div>
     </nav>
+    <div id="sesion-caja" style="margin-top:auto; padding:14px 20px; border-top:1px solid rgba(255,255,255,0.1);">
+      <div id="sesion-usuario-email" style="font-size:11.5px; color:rgba(255,255,255,0.5); margin-bottom:8px; word-break:break-all;"></div>
+      <button id="btn-cerrar-sesion" style="background:none; border:1px solid rgba(255,255,255,0.2); color:rgba(255,255,255,0.7); padding:6px 12px; border-radius:8px; font-size:12.5px; cursor:pointer; width:100%;">Cerrar sesión</button>
+    </div>
   </aside>
   <!-- CONTENIDO PRINCIPAL -->
   <main class="main-content">
     <div class="main-header">
       <h1 id="titulo-modulo">Dashboard</h1>
+      <div style="position:relative; width:320px;">
+        <input type="text" id="busqueda-global" placeholder="🔎 Buscar cliente, producto o factura..." autocomplete="off">
+        <div id="busqueda-global-resultados" class="oculto"></div>
+      </div>
     </div>
     <div id="contenido-modulo">
       <div class="loading">Cargando...</div>
