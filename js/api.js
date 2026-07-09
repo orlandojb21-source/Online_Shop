@@ -32,9 +32,11 @@ const Api = {
   registrarEntrada: (datos) => apiCall('registrarEntrada', datos),
   registrarSalida: (datos) => apiCall('registrarSalida', datos),
   editarSalida: (datos) => apiCall('editarSalida', datos),
+  cancelarSalida: (numFactura) => apiCall('cancelarSalida', { numFactura }),
   registrarAbono: (datos) => apiCall('registrarAbono', datos),
   generarRecibo: (numFactura) => apiCall('generarRecibo', { numFactura }),
   auditarInventario: () => apiCall('auditarInventario', {}),
   generarReporte: (datos) => apiCall('generarReporte', datos),
-  recalcularBalance: (mes) => apiCall('recalcularBalance', { mes })
+  recalcularBalance: (mes) => apiCall('recalcularBalance', { mes }),
+  verificarSesion: (idToken) => apiCall('verificarSesion', { idToken })
 };
