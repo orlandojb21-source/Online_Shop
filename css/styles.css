@@ -150,6 +150,38 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--c
 label { font-size: 13px; font-weight: 600; color: var(--color-gris-texto); display: block; margin-bottom: 6px; }
 .form-group { margin-bottom: 16px; }
 
+/* ===== BÚSQUEDA GLOBAL ===== */
+#busqueda-global-resultados {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  background: var(--color-blanco);
+  border: 1px solid var(--color-borde);
+  border-radius: var(--radio);
+  box-shadow: var(--sombra);
+  max-height: 360px;
+  overflow-y: auto;
+  z-index: 200;
+}
+.busqueda-categoria {
+  padding: 8px 14px 4px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--color-gris-texto);
+}
+.busqueda-resultado {
+  padding: 8px 14px;
+  font-size: 13.5px;
+  cursor: pointer;
+}
+.busqueda-resultado:hover { background: #faf7f0; }
+
+/* El sidebar necesita ocupar toda la altura para que "Cerrar sesión" quede abajo */
+.sidebar { min-height: 100vh; }
+
 /* ===== UTILS ===== */
 .oculto { display: none !important; }
 .loading { text-align: center; padding: 40px; color: var(--color-gris-texto); }
@@ -165,6 +197,7 @@ label { font-size: 13px; font-weight: 600; color: var(--color-gris-texto); displ
 
   .sidebar {
     width: 100%;
+    min-height: auto;
     flex-direction: row;
     padding: 0;
     position: fixed;
@@ -173,6 +206,18 @@ label { font-size: 13px; font-weight: 600; color: var(--color-gris-texto); displ
     right: 0;
     z-index: 100;
     box-shadow: 0 -2px 10px rgba(0,0,0,0.2);
+  }
+
+  #sesion-caja {
+    display: none; /* no cabe en la barra inferior; se puede cerrar sesión desde desktop */
+  }
+
+  .main-header {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .main-header > div {
+    width: 100%;
   }
 
   .sidebar-logo {
