@@ -1941,8 +1941,12 @@ function mostrarApp(sesion) {
   console.log("FOTO RECIBIDA:", sesion.foto);
 
   if (foto && sesion.foto) {
-    foto.src = sesion.foto;
-  }
+  foto.src = sesion.foto;
+  foto.style.display = 'block';
+  console.log("Foto cargada:", sesion.foto);
+} else {
+  console.log("No hay foto o elemento:", foto, sesion);
+}
 
   cargarModulo('dashboard');
 }
