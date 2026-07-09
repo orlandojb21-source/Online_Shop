@@ -1927,16 +1927,22 @@ function manejarLoginGoogle(response) {
 }
 
 function mostrarApp(sesion) {
+
+  console.log("SESION COMPLETA:", sesion);
+
   document.getElementById('pantalla-login').classList.add('oculto');
   document.getElementById('app-layout').classList.remove('oculto');
 
   document.getElementById('sesion-usuario-nombre').textContent = sesion.nombre || 'Usuario';
   document.getElementById('sesion-usuario-email').textContent = sesion.email || '';
+
   const foto = document.getElementById('sesion-usuario-foto');
 
-if (foto && sesion.foto) {
-  foto.src = sesion.foto;
-}
+  console.log("FOTO RECIBIDA:", sesion.foto);
+
+  if (foto && sesion.foto) {
+    foto.src = sesion.foto;
+  }
 
   cargarModulo('dashboard');
 }
