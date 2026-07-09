@@ -1927,9 +1927,6 @@ function manejarLoginGoogle(response) {
 }
 
 function mostrarApp(sesion) {
-
-  console.log("SESION COMPLETA:", sesion);
-
   document.getElementById('pantalla-login').classList.add('oculto');
   document.getElementById('app-layout').classList.remove('oculto');
 
@@ -1937,16 +1934,10 @@ function mostrarApp(sesion) {
   document.getElementById('sesion-usuario-email').textContent = sesion.email || '';
 
   const foto = document.getElementById('sesion-usuario-foto');
-
-  console.log("FOTO RECIBIDA:", sesion.foto);
-
   if (foto && sesion.foto) {
-  foto.src = sesion.foto;
-  foto.style.display = 'block';
-  console.log("Foto cargada:", sesion.foto);
-} else {
-  console.log("No hay foto o elemento:", foto, sesion);
-}
+    foto.src = sesion.foto;
+    foto.style.display = 'block';
+  }
 
   cargarModulo('dashboard');
 }
