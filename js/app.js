@@ -54,7 +54,7 @@ async function renderDashboard(contenedor) {
         <div style="font-size:26px; font-weight:800; letter-spacing:1px;">ONLINE SHOP</div>
         <div style="font-size:14px; color:#bbb;">Panel de control</div>
       </div>
-      <img src="img/logo-online-shop.png" alt="Online Shop" style="height:80px; width:80px; object-fit:contain; flex-shrink:0;">
+      <img src="img/logo-online-shop.png" alt="Online Shop" style="height:150px; width:150px; object-fit:contain; flex-shrink:0;">
     </div>
 
     <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:16px; margin-bottom:24px;">
