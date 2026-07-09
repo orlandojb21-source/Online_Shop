@@ -1911,7 +1911,12 @@ function manejarLoginGoogle(response) {
     document.getElementById('login-cargando').classList.add('oculto');
     if (resultado.ok) {
       // sessionStorage (no localStorage): la sesión dura mientras la pestaña esté abierta, más seguro
-      sessionStorage.setItem('online_shop_sesion', JSON.stringify({ email: resultado.email, nombre: resultado.nombre, idToken }));
+      sessionStorage.setItem('online_shop_sesion', JSON.stringify({ 
+  email: resultado.email, 
+  nombre: resultado.nombre, 
+  foto: resultado.foto,
+  idToken 
+}));
       mostrarApp(resultado);
     } else {
       const err = document.getElementById('login-error');
