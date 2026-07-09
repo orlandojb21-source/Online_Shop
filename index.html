@@ -31,9 +31,12 @@
 
   <!-- REEMPLAZA data-client_id con tu propio OAuth Client ID de Google Cloud Console -->
   <div id="g_id_onload"
-       data-client_id="797891683379-jffbs16mg21v587g22vaev4f9u0c0kh7.apps.googleusercontent.com"
-       data-callback="manejarLoginGoogle">
-  </div>
+     data-client_id="797891683379-jffbs16mg21v587g22vaev4f9u0c0kh7.apps.googleusercontent.com"
+     data-context="signin"
+     data-ux_mode="popup"
+     data-callback="manejarLoginGoogle"
+     data-auto_prompt="false">
+</div>
   <div class="g_id_signin" data-type="standard" data-theme="outline" data-size="large" data-text="signin_with"></div>
 
   <p id="login-error" class="oculto" style="color:var(--color-rojo); font-size:13.5px; max-width:320px;"></p>
