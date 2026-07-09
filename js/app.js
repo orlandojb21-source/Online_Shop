@@ -1932,6 +1932,11 @@ function mostrarApp(sesion) {
 
   document.getElementById('sesion-usuario-nombre').textContent = sesion.nombre || 'Usuario';
   document.getElementById('sesion-usuario-email').textContent = sesion.email || '';
+  const foto = document.getElementById('sesion-usuario-foto');
+
+if (foto && sesion.foto) {
+  foto.src = sesion.foto;
+}
 
   cargarModulo('dashboard');
 }
