@@ -51,16 +51,16 @@ async function renderDashboard(contenedor) {
   contenedor.innerHTML = `
     <div class="card" style="display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:20px; background:#111; color:#fff;">
       <div>
-        <div style="font-size:40px; font-weight:800; letter-spacing:1px;">ONLINE SHOP</div>
-        <div style="font-size:12.5px; color:#bbb;">Panel de control</div>
+        <div style="font-size:26px; font-weight:800; letter-spacing:1px;">ONLINE SHOP</div>
+        <div style="font-size:14px; color:#bbb;">Panel de control</div>
       </div>
-      <img src="img/logo-online-shop.png" alt="Online Shop" style="height:200px; width:200px; object-fit:contain; flex-shrink:0;">
+      <img src="img/logo-online-shop.png" alt="Online Shop" style="height:80px; width:80px; object-fit:contain; flex-shrink:0;">
     </div>
 
     <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:16px; margin-bottom:24px;">
-      <button class="btn btn-primary" id="btn-acceso-ventas" style="padding:18px; font-size:15px;">🧾 Ventas</button>
+      <button class="btn btn-primary" id="btn-acceso-ventas" style="padding:18px; font-size:15px;">🧾 Ir a Ventas</button>
       <button class="btn btn-primary" id="btn-acceso-solicitud" style="padding:18px; font-size:15px;">📦 Solicitud a Proveedor</button>
-      <button class="btn btn-primary" id="btn-acceso-stock" style="padding:18px; font-size:15px;">📊 Stock</button>
+      <button class="btn btn-primary" id="btn-acceso-stock" style="padding:18px; font-size:15px;">📊 Ver lo que tengo en stock</button>
     </div>
 
     <div class="stats-grid">
