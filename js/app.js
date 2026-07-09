@@ -51,7 +51,7 @@ async function renderDashboard(contenedor) {
   contenedor.innerHTML = `
     <div class="card" style="display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:20px; background:#111; color:#fff;">
       <div>
-        <div style="font-size:20px; font-weight:800; letter-spacing:1px;">ONLINE SHOP</div>
+        <div style="font-size:100px; font-weight:800; letter-spacing:1px;">ONLINE SHOP</div>
         <div style="font-size:12.5px; color:#bbb;">Panel de control</div>
       </div>
       <img src="img/logo-online-shop.png" alt="Online Shop" style="height:200px; width:200px; object-fit:contain; flex-shrink:0;">
