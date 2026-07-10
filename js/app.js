@@ -2156,8 +2156,4 @@ if (btnCerrarSesion) btnCerrarSesion.addEventListener('click', cerrarSesion);
     }
   }
 
-  function ocultarLogin() {
-    document.getElementById('pantalla-login').classList.add('oculto');
-    document.getElementById('app-layout').classList.remove('oculto');
-}
 })();
