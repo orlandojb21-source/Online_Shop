@@ -33,6 +33,10 @@ body {
   flex-direction: column;
   padding: 24px 0;
   flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
 }
 
 .sidebar-logo {
@@ -180,7 +184,7 @@ label { font-size: 13px; font-weight: 600; color: var(--color-gris-texto); displ
 .busqueda-resultado:hover { background: #faf7f0; }
 
 /* El sidebar necesita ocupar toda la altura para que "Cerrar sesión" quede abajo */
-.sidebar { min-height: 100vh; }
+/* (el sidebar ya queda fijo con position:sticky definido arriba) */
 
 /* ===== UTILS ===== */
 .oculto { display: none !important; }
@@ -198,6 +202,8 @@ label { font-size: 13px; font-weight: 600; color: var(--color-gris-texto); displ
   .sidebar {
     width: 100%;
     min-height: auto;
+    height: auto;
+    top: auto;
     flex-direction: row;
     padding: 0;
     position: fixed;
