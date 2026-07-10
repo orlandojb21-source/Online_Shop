@@ -2096,11 +2096,11 @@ function manejarLoginGoogle(response) {
         const payload = JSON.parse(atob(jwt.split('.')[1]));
         
         if (payload && payload.email) {
-            // Guardamos el email como antes para la UI
+            // Guardamos datos para la interfaz visual
             localStorage.setItem('usuario_email', payload.email);
             localStorage.setItem('usuario_nombre', payload.name || '');
             
-            // NUEVO: Guardamos el token criptográfico completo para la API
+            // NUEVO: Guardamos el token criptográfico real para la comunicación segura con el servidor
             sessionStorage.setItem('google_id_token', jwt);
             
             usuarioActual = payload.email;
@@ -2114,15 +2114,6 @@ function manejarLoginGoogle(response) {
         console.error('Error al procesar login:', error);
         alert('Error al iniciar sesión con Google.');
     }
-}
-
-// ADEMÁS, en la función de cerrarSesión() añade la limpieza del token:
-function cerrarSesion() {
-    localStorage.removeItem('usuario_email');
-    localStorage.removeItem('usuario_nombre');
-    sessionStorage.removeItem('google_id_token'); // <-- Limpiar token
-    usuarioActual = null;
-    mostrarLogin();
 }
 
 function mostrarApp(sesion) {
@@ -2141,15 +2132,20 @@ function mostrarApp(sesion) {
   cargarModulo('dashboard');
 }
 
+// Una sola función de cerrar sesión que limpia absolutamente TODO
 function cerrarSesion() {
+  localStorage.removeItem('usuario_email');
+  localStorage.removeItem('usuario_nombre');
   sessionStorage.removeItem('online_shop_sesion');
-  location.reload();
+  sessionStorage.removeItem('google_id_token'); // Limpia el token criptográfico al salir
+  usuarioActual = null;
+  location.reload(); // Recarga la página limpiando estados en memoria
 }
 
 const btnCerrarSesion = document.getElementById('btn-cerrar-sesion');
 if (btnCerrarSesion) btnCerrarSesion.addEventListener('click', cerrarSesion);
 
-// Al cargar la página: si ya hay sesión guardada en esta pestaña, entra directo sin pedir login otra vez
+// Al cargar la página: comprueba si ya estabas logueado para entrar directo
 (function iniciarSesionSiExiste() {
   const guardada = sessionStorage.getItem('online_shop_sesion');
   if (guardada) {
@@ -2159,5 +2155,4 @@ if (btnCerrarSesion) btnCerrarSesion.addEventListener('click', cerrarSesion);
       sessionStorage.removeItem('online_shop_sesion');
     }
   }
-  // Si no hay sesión guardada, la app se queda en la pantalla de login esperando el botón de Google
 })();
