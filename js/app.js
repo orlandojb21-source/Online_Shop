@@ -2091,29 +2091,29 @@ inicializarBusquedaGlobal();
 // Esta función la llama Google Identity Services automáticamente cuando alguien
 // completa el login (referenciada por data-callback en el div #g_id_onload de index.html)
 function manejarLoginGoogle(response) {
-    try {
-        const jwt = response.credential; // Este es el idToken criptográfico
-        const payload = JSON.parse(atob(jwt.split('.')[1]));
-        
-        if (payload && payload.email) {
-            // Guardamos datos para la interfaz visual
-            localStorage.setItem('usuario_email', payload.email);
-            localStorage.setItem('usuario_nombre', payload.name || '');
-            
-            // NUEVO: Guardamos el token criptográfico real para la comunicación segura con el servidor
-            sessionStorage.setItem('google_id_token', jwt);
-            
-            usuarioActual = payload.email;
-            
-            ocultarLogin();
-            inicializarApp();
-        } else {
-            alert('Error en la estructura del token de Google.');
-        }
-    } catch (error) {
-        console.error('Error al procesar login:', error);
-        alert('Error al iniciar sesión con Google.');
+  const idToken = response.credential;
+  document.getElementById('login-error').classList.add('oculto');
+  document.getElementById('login-cargando').classList.remove('oculto');
+
+  Api.verificarSesion(idToken).then(resultado => {
+    document.getElementById('login-cargando').classList.add('oculto');
+    if (resultado.ok) {
+      // sessionStorage (no localStorage): la sesión dura mientras la pestaña esté abierta, más seguro.
+      // Guardamos el idToken aquí mismo — api.js lo reenvía en CADA llamada para que el backend
+      // valide quién eres en cada request, no solo al iniciar sesión.
+      sessionStorage.setItem('online_shop_sesion', JSON.stringify({
+        email: resultado.email,
+        nombre: resultado.nombre,
+        foto: resultado.foto,
+        idToken
+      }));
+      mostrarApp(resultado);
+    } else {
+      const err = document.getElementById('login-error');
+      err.textContent = resultado.error || 'No se pudo iniciar sesión';
+      err.classList.remove('oculto');
     }
+  });
 }
 
 function mostrarApp(sesion) {
@@ -2132,20 +2132,17 @@ function mostrarApp(sesion) {
   cargarModulo('dashboard');
 }
 
-// Una sola función de cerrar sesión que limpia absolutamente TODO
 function cerrarSesion() {
-  localStorage.removeItem('usuario_email');
-  localStorage.removeItem('usuario_nombre');
   sessionStorage.removeItem('online_shop_sesion');
-  sessionStorage.removeItem('google_id_token'); // Limpia el token criptográfico al salir
-  usuarioActual = null;
-  location.reload(); // Recarga la página limpiando estados en memoria
+  location.reload();
 }
 
 const btnCerrarSesion = document.getElementById('btn-cerrar-sesion');
 if (btnCerrarSesion) btnCerrarSesion.addEventListener('click', cerrarSesion);
 
-// Al cargar la página: comprueba si ya estabas logueado para entrar directo
+// Al cargar la página: si ya hay sesión guardada en esta pestaña, entra directo sin pedir login otra vez.
+// Ojo: esto solo evita repetir el botón de Google — el backend igual revalida el idToken en cada
+// llamada, así que si el token ya expiró, la primera acción que hagas te devolverá el error de sesión.
 (function iniciarSesionSiExiste() {
   const guardada = sessionStorage.getItem('online_shop_sesion');
   if (guardada) {
@@ -2155,5 +2152,4 @@ if (btnCerrarSesion) btnCerrarSesion.addEventListener('click', cerrarSesion);
       sessionStorage.removeItem('online_shop_sesion');
     }
   }
-
 })();
