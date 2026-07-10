@@ -2091,27 +2091,38 @@ inicializarBusquedaGlobal();
 // Esta función la llama Google Identity Services automáticamente cuando alguien
 // completa el login (referenciada por data-callback en el div #g_id_onload de index.html)
 function manejarLoginGoogle(response) {
-  const idToken = response.credential;
-  document.getElementById('login-error').classList.add('oculto');
-  document.getElementById('login-cargando').classList.remove('oculto');
-
-  Api.verificarSesion(idToken).then(resultado => {
-    document.getElementById('login-cargando').classList.add('oculto');
-    if (resultado.ok) {
-      // sessionStorage (no localStorage): la sesión dura mientras la pestaña esté abierta, más seguro
-      sessionStorage.setItem('online_shop_sesion', JSON.stringify({ 
-  email: resultado.email, 
-  nombre: resultado.nombre, 
-  foto: resultado.foto,
-  idToken 
-}));
-      mostrarApp(resultado);
-    } else {
-      const err = document.getElementById('login-error');
-      err.textContent = resultado.error || 'No se pudo iniciar sesión';
-      err.classList.remove('oculto');
+    try {
+        const jwt = response.credential; // Este es el idToken criptográfico
+        const payload = JSON.parse(atob(jwt.split('.')[1]));
+        
+        if (payload && payload.email) {
+            // Guardamos el email como antes para la UI
+            localStorage.setItem('usuario_email', payload.email);
+            localStorage.setItem('usuario_nombre', payload.name || '');
+            
+            // NUEVO: Guardamos el token criptográfico completo para la API
+            sessionStorage.setItem('google_id_token', jwt);
+            
+            usuarioActual = payload.email;
+            
+            ocultarLogin();
+            inicializarApp();
+        } else {
+            alert('Error en la estructura del token de Google.');
+        }
+    } catch (error) {
+        console.error('Error al procesar login:', error);
+        alert('Error al iniciar sesión con Google.');
     }
-  });
+}
+
+// ADEMÁS, en la función de cerrarSesión() añade la limpieza del token:
+function cerrarSesion() {
+    localStorage.removeItem('usuario_email');
+    localStorage.removeItem('usuario_nombre');
+    sessionStorage.removeItem('google_id_token'); // <-- Limpiar token
+    usuarioActual = null;
+    mostrarLogin();
 }
 
 function mostrarApp(sesion) {
