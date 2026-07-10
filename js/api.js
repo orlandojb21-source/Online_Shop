@@ -17,19 +17,37 @@ function obtenerUsuarioSesion() {
 
 async function apiCall(accion, data = {}) {
   try {
+    // 1. Obtener el idToken criptográfico real que guardamos en el Paso 1
+    const tokenCriptografico = sessionStorage.getItem('google_id_token');
+    
+    // Mantenemos el flujo actual por si acaso, pero añadimos el token en la raíz
     const usuario = obtenerUsuarioSesion();
     const datosConUsuario = usuario ? { ...data, usuario } : data;
+
+    // Construimos el nuevo payload de seguridad
+    const payload = {
+      accion: accion,
+      idToken: tokenCriptografico, // <-- Enviamos el token firmado por Google para validar la API
+      data: datosConUsuario
+    };
+
     const res = await fetch(API_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'text/plain' }, // evita preflight CORS con Apps Script
-      body: JSON.stringify({ accion, data: datosConUsuario })
+      headers: { 'Content-Type': 'text/plain' }, // Evita preflight CORS con Apps Script
+      body: JSON.stringify(payload) // Mandamos todo el payload con el idToken incluido
     });
+
     const json = await res.json();
-    if (!json.ok) {
-      console.error('Error API:', json.error);
-      alert('Error: ' + json.error);
+    
+    // Si Apps Script nos devuelve un estado de error controlado (ej: token inválido)
+    if (json.status === 'error' || json.ok === false) {
+      console.error('Error API:', json.message || json.error);
+      alert('Error de Seguridad / Aplicación: ' + (json.message || json.error));
+      return { ok: false, error: json.message || json.error };
     }
-    return json;
+
+    // Retornamos el formato esperado por tu frontend actual para no romper tus vistas (.ok y .resultado)
+    return { ok: true, resultado: json.data };
   } catch (err) {
     console.error('Error de conexión:', err);
     alert('Error de conexión con el servidor');
