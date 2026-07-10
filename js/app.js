@@ -2155,4 +2155,9 @@ if (btnCerrarSesion) btnCerrarSesion.addEventListener('click', cerrarSesion);
       sessionStorage.removeItem('online_shop_sesion');
     }
   }
+
+  function ocultarLogin() {
+    document.getElementById('pantalla-login').classList.add('oculto');
+    document.getElementById('app-layout').classList.remove('oculto');
+}
 })();
