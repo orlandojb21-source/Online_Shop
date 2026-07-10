@@ -91,18 +91,18 @@ async function renderDashboard(contenedor) {
       <h3 style="margin-bottom:12px;">⚠️ Alertas de Stock</h3>
       <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px;">
         <div>
-          <div style="font-size:12.5px; color:var(--color-gris-texto); margin-bottom:6px;">Agotados (${agotados.length})</div>
-          ${agotados.length === 0 ? '<p style="font-size:13px; color:var(--color-gris-texto);">Ninguno 🎉</p>' : agotados.slice(0, 6).map(p => `
-            <div style="font-size:13.5px; padding:4px 0; border-bottom:1px solid var(--color-borde);">${p.CodigoDeProducto} — ${p.Descripcion}</div>
-          `).join('')}
-          ${agotados.length > 6 ? `<div style="font-size:12px; color:var(--color-gris-texto); margin-top:4px;">+${agotados.length - 6} más...</div>` : ''}
+          <div style="font-size:12.5px; color:var(--color-gris-texto); margin-bottom:8px;">Agotados (${agotados.length})</div>
+          ${agotados.length === 0 ? '<p style="font-size:13px; color:var(--color-gris-texto);">Ninguno 🎉</p>' : `
+          <div style="display:flex; flex-wrap:wrap; gap:6px;">
+            ${agotados.map(p => `<span class="badge badge-alerta" title="${p.Descripcion}">${p.CodigoDeProducto}</span>`).join('')}
+          </div>`}
         </div>
         <div>
-          <div style="font-size:12.5px; color:var(--color-gris-texto); margin-bottom:6px;">Stock bajo (${bajos.length})</div>
-          ${bajos.length === 0 ? '<p style="font-size:13px; color:var(--color-gris-texto);">Ninguno 🎉</p>' : bajos.slice(0, 6).map(p => `
-            <div style="font-size:13.5px; padding:4px 0; border-bottom:1px solid var(--color-borde);">${p.CodigoDeProducto} — ${p.Descripcion} <span class="badge badge-alerta">${p.StockActual}</span></div>
-          `).join('')}
-          ${bajos.length > 6 ? `<div style="font-size:12px; color:var(--color-gris-texto); margin-top:4px;">+${bajos.length - 6} más...</div>` : ''}
+          <div style="font-size:12.5px; color:var(--color-gris-texto); margin-bottom:8px;">Stock bajo (${bajos.length})</div>
+          ${bajos.length === 0 ? '<p style="font-size:13px; color:var(--color-gris-texto);">Ninguno 🎉</p>' : `
+          <div style="display:flex; flex-wrap:wrap; gap:6px;">
+            ${bajos.map(p => `<span class="badge badge-alerta" title="${p.Descripcion}">${p.CodigoDeProducto} (${p.StockActual})</span>`).join('')}
+          </div>`}
         </div>
       </div>
     </div>` : ''}
@@ -538,6 +538,7 @@ async function renderSolicitudProveedor(contenedor) {
       ${Object.keys(grupos).length === 0 ? '<p>Sin solicitudes aún</p>' : Object.entries(grupos).map(([numSolicitud, lineas]) => {
         const primera = lineas[0];
         const todoRecibido = lineas.every(l => l.Estado === 'Recibido');
+        const totalSolicitud = lineas.reduce((sum, l) => sum + Number(l.TotalDeCosto || 0), 0);
         const idGrupo = 'grupo-' + numSolicitud.replace(/[^a-zA-Z0-9]/g, '');
         return `
           <div style="border:1px solid var(--color-borde); border-radius:var(--radio); margin-bottom:12px; overflow:hidden;">
@@ -548,28 +549,38 @@ async function renderSolicitudProveedor(contenedor) {
                 <span class="badge ${primera.Pagado === 'Sí' ? 'badge-ok' : 'badge-pendiente'}" style="margin-left:8px;">${primera.Pagado === 'Sí' ? 'Pagado' : 'No pagado'}</span>
                 <span class="badge ${todoRecibido ? 'badge-ok' : 'badge-alerta'}" style="margin-left:6px;">${todoRecibido ? 'Recibido' : 'Pendiente'}</span>
               </div>
-              <span style="color:var(--color-gris-texto); font-size:13px;">Ver detalle ▾</span>
+              <div style="display:flex; align-items:center; gap:12px;">
+                <strong>$${totalSolicitud.toFixed(2)}</strong>
+                <span style="color:var(--color-gris-texto); font-size:13px;">Ver detalle ▾</span>
+              </div>
             </div>
             <div id="${idGrupo}" class="oculto" style="padding:16px;">
-              <div style="display:flex; justify-content:flex-end; margin-bottom:10px;">
-                ${!todoRecibido ? `<button class="btn btn-primary btn-entregado-grupo" data-num="${numSolicitud}" style="padding:6px 14px; font-size:13px;">Marcar todo como Entregado</button>` : ''}
+              <div id="${idGrupo}-normal">
+                <div style="display:flex; justify-content:flex-end; gap:8px; margin-bottom:10px;">
+                  <button class="btn btn-secundario btn-editar-solicitud" data-num="${numSolicitud}" style="padding:6px 14px; font-size:13px;">✏️ Editar Solicitud</button>
+                  ${!todoRecibido ? `<button class="btn btn-primary btn-entregado-grupo" data-num="${numSolicitud}" style="padding:6px 14px; font-size:13px;">Marcar todo como Entregado</button>` : ''}
+                </div>
+                <table>
+                  <thead><tr><th>Código</th><th>Descripción</th><th>Talla</th><th>Cant.</th><th>Total</th><th>Estado</th><th></th></tr></thead>
+                  <tbody>
+                    ${lineas.map(l => `
+                      <tr>
+                        <td>${l.CodigoDeProducto}</td>
+                        <td>${l.Descripcion}</td>
+                        <td>${l.Talla}</td>
+                        <td>${l.Cantidad}</td>
+                        <td>$${Number(l.TotalDeCosto || 0).toFixed(2)}</td>
+                        <td><span class="badge badge-alerta">${l.Estado}</span></td>
+                        <td><button class="btn btn-secundario btn-entregado-linea" data-id="${l.ID}" style="padding:4px 10px; font-size:12px;">Recibido</button></td>
+                      </tr>
+                    `).join('')}
+                  </tbody>
+                </table>
+                <div style="text-align:right; margin-top:10px; font-size:14.5px;">
+                  Total de la solicitud: <strong>$${totalSolicitud.toFixed(2)}</strong>
+                </div>
               </div>
-              <table>
-                <thead><tr><th>Código</th><th>Descripción</th><th>Talla</th><th>Cant.</th><th>Total</th><th>Estado</th><th></th></tr></thead>
-                <tbody>
-                  ${lineas.map(l => `
-                    <tr>
-                      <td>${l.CodigoDeProducto}</td>
-                      <td>${l.Descripcion}</td>
-                      <td>${l.Talla}</td>
-                      <td>${l.Cantidad}</td>
-                      <td>$${Number(l.TotalDeCosto || 0).toFixed(2)}</td>
-                      <td><span class="badge badge-alerta">${l.Estado}</span></td>
-                      <td><button class="btn btn-secundario btn-entregado-linea" data-id="${l.ID}" style="padding:4px 10px; font-size:12px;">Recibido</button></td>
-                    </tr>
-                  `).join('')}
-                </tbody>
-              </table>
+              <div id="${idGrupo}-edicion" class="oculto"></div>
             </div>
           </div>
         `;
@@ -581,6 +592,24 @@ async function renderSolicitudProveedor(contenedor) {
   document.querySelectorAll('.fila-resumen-solicitud').forEach(fila => {
     fila.addEventListener('click', () => {
       document.getElementById(fila.dataset.target).classList.toggle('oculto');
+    });
+  });
+
+  // Botón "✏️ Editar Solicitud": activa el modo edición para esa solicitud puntual
+  let edicionSolicitud = null;
+  document.querySelectorAll('.btn-editar-solicitud').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const numSolicitud = btn.dataset.num;
+      const idGrupo = 'grupo-' + numSolicitud.replace(/[^a-zA-Z0-9]/g, '');
+      edicionSolicitud = {
+        pagado: grupos[numSolicitud][0].Pagado,
+        lineas: grupos[numSolicitud].map(l => ({ ...l })),
+        nuevas: []
+      };
+      document.getElementById(idGrupo + '-normal').classList.add('oculto');
+      document.getElementById(idGrupo + '-edicion').classList.remove('oculto');
+      renderEdicionSolicitud(numSolicitud, idGrupo);
     });
   });
 
@@ -615,6 +644,162 @@ async function renderSolicitudProveedor(contenedor) {
         lineasSolicitud.splice(Number(b.dataset.idx), 1);
         renderTablaLineas();
       });
+    });
+  }
+
+  // Dibuja el formulario de edición de una solicitud existente (cantidades, precios, pagado, agregar/quitar productos)
+  function renderEdicionSolicitud(numSolicitud, idGrupo) {
+    const cont = document.getElementById(idGrupo + '-edicion');
+
+    const totalLinea = l => (l.Cantidad !== undefined ? Number(l.Cantidad) * Number(l.PrecioUnidad) : Number(l.cantidad) * Number(l.precio));
+    const totalEdicion = [...edicionSolicitud.lineas, ...edicionSolicitud.nuevas].reduce((sum, l) => sum + totalLinea(l), 0);
+
+    cont.innerHTML = `
+      <div class="form-group" style="max-width:200px; margin-bottom:14px;">
+        <label>¿Ya pagado?</label>
+        <select id="edicion-pagado">
+          <option value="No" ${edicionSolicitud.pagado === 'No' ? 'selected' : ''}>No</option>
+          <option value="Sí" ${edicionSolicitud.pagado === 'Sí' ? 'selected' : ''}>Sí</option>
+        </select>
+      </div>
+      <table>
+        <thead><tr><th>Código</th><th>Descripción</th><th>Talla</th><th>Cant.</th><th>Precio/u</th><th>Total</th><th></th></tr></thead>
+        <tbody>
+          ${edicionSolicitud.lineas.map((l, idx) => `
+            <tr>
+              <td>${l.CodigoDeProducto}</td>
+              <td>${l.Descripcion}</td>
+              <td>${l.Talla}</td>
+              <td><input type="number" class="edicion-cantidad" data-tipo="existente" data-idx="${idx}" value="${l.Cantidad}" style="width:80px;"></td>
+              <td><input type="number" step="0.01" class="edicion-precio" data-tipo="existente" data-idx="${idx}" value="${l.PrecioUnidad}" style="width:90px;"></td>
+              <td class="edicion-total-linea" data-tipo="existente" data-idx="${idx}">$${(Number(l.Cantidad) * Number(l.PrecioUnidad)).toFixed(2)}</td>
+              <td><button class="btn-quitar-edicion" data-tipo="existente" data-idx="${idx}" style="background:none; border:none; color:var(--color-rojo); cursor:pointer; font-weight:700;">✕</button></td>
+            </tr>
+          `).join('')}
+          ${edicionSolicitud.nuevas.map((l, idx) => `
+            <tr>
+              <td>${l.codigo}</td>
+              <td>${l.descripcion}</td>
+              <td>${l.talla}</td>
+              <td><input type="number" class="edicion-cantidad" data-tipo="nueva" data-idx="${idx}" value="${l.cantidad}" style="width:80px;"></td>
+              <td><input type="number" step="0.01" class="edicion-precio" data-tipo="nueva" data-idx="${idx}" value="${l.precio}" style="width:90px;"></td>
+              <td class="edicion-total-linea" data-tipo="nueva" data-idx="${idx}">$${(Number(l.cantidad) * Number(l.precio)).toFixed(2)}</td>
+              <td><button class="btn-quitar-edicion" data-tipo="nueva" data-idx="${idx}" style="background:none; border:none; color:var(--color-rojo); cursor:pointer; font-weight:700;">✕</button></td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+      <div style="text-align:right; margin:10px 0; font-size:14px;">Total: <strong id="edicion-total-general">$${totalEdicion.toFixed(2)}</strong></div>
+
+      <h4 style="margin-bottom:8px; color:var(--color-gris-texto); font-size:13px;">Agregar producto a esta solicitud</h4>
+      <div style="display:grid; grid-template-columns: 2fr 1fr 1fr auto; gap:10px; margin-bottom:14px;">
+        <input type="text" id="edicion-buscar-producto" list="lista-inventario" placeholder="Buscar producto...">
+        <input type="number" id="edicion-nueva-cantidad" placeholder="Cantidad">
+        <input type="number" step="0.01" id="edicion-nuevo-precio" placeholder="Precio/u">
+        <button class="btn btn-secundario" id="btn-edicion-agregar">+ Agregar</button>
+      </div>
+
+      <div style="display:flex; gap:10px;">
+        <button class="btn btn-primary" id="btn-guardar-edicion-solicitud">Guardar Cambios</button>
+        <button class="btn btn-secundario" id="btn-cancelar-edicion-solicitud">Cancelar</button>
+      </div>
+    `;
+
+    function actualizarTotalEdicion() {
+      const total = [...edicionSolicitud.lineas, ...edicionSolicitud.nuevas].reduce((sum, l) => sum + totalLinea(l), 0);
+      document.getElementById('edicion-total-general').textContent = '$' + total.toFixed(2);
+    }
+
+    cont.querySelectorAll('.edicion-cantidad, .edicion-precio').forEach(input => {
+      input.addEventListener('input', () => {
+        const tipo = input.dataset.tipo;
+        const idx = Number(input.dataset.idx);
+        const target = tipo === 'existente' ? edicionSolicitud.lineas[idx] : edicionSolicitud.nuevas[idx];
+        const esCantidad = input.classList.contains('edicion-cantidad');
+        if (tipo === 'existente') {
+          if (esCantidad) target.Cantidad = Number(input.value) || 0; else target.PrecioUnidad = Number(input.value) || 0;
+        } else {
+          if (esCantidad) target.cantidad = Number(input.value) || 0; else target.precio = Number(input.value) || 0;
+        }
+        const celda = cont.querySelector(`.edicion-total-linea[data-tipo="${tipo}"][data-idx="${idx}"]`);
+        if (celda) celda.textContent = '$' + totalLinea(target).toFixed(2);
+        actualizarTotalEdicion();
+      });
+    });
+
+    cont.querySelectorAll('.btn-quitar-edicion').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const tipo = btn.dataset.tipo;
+        const idx = Number(btn.dataset.idx);
+        if (tipo === 'existente') edicionSolicitud.lineas.splice(idx, 1);
+        else edicionSolicitud.nuevas.splice(idx, 1);
+        renderEdicionSolicitud(numSolicitud, idGrupo);
+      });
+    });
+
+    document.getElementById('edicion-pagado').addEventListener('change', (e) => {
+      edicionSolicitud.pagado = e.target.value;
+    });
+
+    document.getElementById('btn-edicion-agregar').addEventListener('click', () => {
+      const inputBuscarEd = document.getElementById('edicion-buscar-producto');
+      const codigoTexto = inputBuscarEd.value.split(' — ')[0].trim();
+      const producto = inventario.find(p => p.CodigoDeProducto === codigoTexto);
+      const cantidad = Number(document.getElementById('edicion-nueva-cantidad').value) || 0;
+      const precio = Number(document.getElementById('edicion-nuevo-precio').value) || 0;
+      if (!producto) { alert('Selecciona un producto válido de la lista de Inventario'); return; }
+      if (!cantidad) { alert('La cantidad es obligatoria'); return; }
+      edicionSolicitud.nuevas.push({ codigo: producto.CodigoDeProducto, descripcion: producto.Descripcion, talla: producto.Talla, cantidad, precio });
+      renderEdicionSolicitud(numSolicitud, idGrupo);
+    });
+
+    document.getElementById('btn-cancelar-edicion-solicitud').addEventListener('click', () => {
+      edicionSolicitud = null;
+      document.getElementById(idGrupo + '-edicion').classList.add('oculto');
+      document.getElementById(idGrupo + '-normal').classList.remove('oculto');
+    });
+
+    document.getElementById('btn-guardar-edicion-solicitud').addEventListener('click', async (e) => {
+      const btn = e.target;
+      btn.disabled = true;
+      btn.textContent = 'Guardando...';
+
+      const idsOriginales = grupos[numSolicitud].map(l => l.ID);
+      const idsQueQuedan = edicionSolicitud.lineas.map(l => l.ID);
+      const idsEliminados = idsOriginales.filter(id => idsQueQuedan.indexOf(id) === -1);
+
+      for (const id of idsEliminados) {
+        await Api.eliminar('SolicitudProveedor', id);
+      }
+      for (const l of edicionSolicitud.lineas) {
+        await Api.actualizar('SolicitudProveedor', l.ID, {
+          Cantidad: l.Cantidad,
+          PrecioUnidad: l.PrecioUnidad,
+          TotalDeCosto: Number(l.Cantidad) * Number(l.PrecioUnidad),
+          Pagado: edicionSolicitud.pagado
+        });
+      }
+      const primeraOriginal = grupos[numSolicitud][0];
+      for (const n of edicionSolicitud.nuevas) {
+        await Api.agregar('SolicitudProveedor', {
+          'N°Solicitud': numSolicitud,
+          CodigoDeProducto: n.codigo,
+          Descripcion: n.descripcion,
+          Talla: n.talla,
+          PrecioUnidad: n.precio,
+          'N°Lote': '',
+          Cantidad: n.cantidad,
+          TotalDeCosto: n.cantidad * n.precio,
+          Proveedor: primeraOriginal.Proveedor,
+          NombreDeProveedor: primeraOriginal.NombreDeProveedor,
+          Pagado: edicionSolicitud.pagado,
+          Estado: 'Pendiente',
+          Fecha: primeraOriginal.Fecha
+        });
+      }
+
+      edicionSolicitud = null;
+      renderSolicitudProveedor(contenedor);
     });
   }
 
@@ -894,6 +1079,9 @@ function renderGruposEntrada(grupos) {
               `).join('')}
             </tbody>
           </table>
+          <div style="text-align:right; margin-top:10px; font-size:14.5px;">
+            Total del pedido: <strong>$${totalFactura.toFixed(2)}</strong>
+          </div>
         </div>
       </div>
     `;
