@@ -1,3 +1,13 @@
+/* =====================================================================
+   ONLINE SHOP — styles.css
+   Paleta original intacta (negro / rojo / crema). Cambios de esta pasada:
+   - Tipografía: Bebas Neue (títulos, estilo rótulo de oferta) + Inter (cuerpo)
+     + JetBrains Mono (precios y números de factura, estilo ticket de caja)
+   - Motivo visual "etiqueta de precio" (del logo) aplicado en 3 puntos:
+     nav activo, esquina de stat-cards, punta del botón primario
+   - Se agrega .badge-destacado (dorado) para usos futuros (ej. Top Productos)
+   ===================================================================== */
+
 :root {
   --color-negro: #1a1a1a;
   --color-rojo: #E8121C;
@@ -6,17 +16,30 @@
   --color-blanco: #FFFFFF;
   --color-gris-texto: #4a4a4a;
   --color-borde: #e5e0d5;
+  --color-dorado: #C9A227;
+  --color-dorado-suave: #FBF1D6;
   --sombra: 0 2px 8px rgba(0,0,0,0.08);
   --radio: 10px;
+
+  --font-display: 'Bebas Neue', 'Segoe UI', system-ui, sans-serif;
+  --font-body: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Consolas', monospace;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 body {
-  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-family: var(--font-body);
   background: var(--color-crema);
   color: var(--color-negro);
   min-height: 100vh;
+}
+
+/* ===== LOGIN ===== */
+#pantalla-login h2 {
+  font-family: var(--font-display);
+  font-size: 30px;
+  letter-spacing: 3px;
 }
 
 /* ===== LAYOUT ===== */
@@ -41,19 +64,20 @@ body {
 
 .sidebar-logo {
   padding: 0 20px 24px;
-  font-size: 20px;
-  font-weight: 700;
-  letter-spacing: 0.5px;
+  font-family: var(--font-display);
+  font-size: 26px;
+  letter-spacing: 2px;
   border-bottom: 1px solid rgba(255,255,255,0.1);
   margin-bottom: 16px;
 }
 .sidebar-logo span { color: var(--color-rojo); }
 
 .nav-item {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 12px 20px;
+  padding: 12px 20px 12px 23px;
   cursor: pointer;
   color: rgba(255,255,255,0.7);
   font-size: 14.5px;
@@ -62,11 +86,31 @@ body {
 }
 .nav-item .nav-texto-corto { display: none; }
 .nav-item:hover { background: rgba(255,255,255,0.05); color: var(--color-crema); }
+
+/* "Etiqueta" activa: en vez de una barra plana, una muesca tipo tag con su agujerito,
+   el mismo motivo del logo (■ rojo con círculo) */
 .nav-item.activo {
   background: rgba(232,18,28,0.12);
   color: var(--color-blanco);
-  border-left-color: var(--color-rojo);
+  border-left-color: transparent;
   font-weight: 600;
+}
+.nav-item.activo::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 8px; bottom: 8px;
+  width: 4px;
+  background: var(--color-rojo);
+  clip-path: polygon(0 0, 100% 18%, 100% 82%, 0 100%);
+}
+.nav-item.activo::after {
+  content: '';
+  position: absolute;
+  left: 1px; top: 50%;
+  width: 3px; height: 3px;
+  background: var(--color-crema);
+  border-radius: 50%;
+  transform: translateY(-50%);
 }
 
 .main-content {
@@ -81,7 +125,12 @@ body {
   align-items: center;
   margin-bottom: 28px;
 }
-.main-header h1 { font-size: 24px; font-weight: 700; }
+.main-header h1 {
+  font-family: var(--font-display);
+  font-size: 32px;
+  letter-spacing: 1px;
+  font-weight: 400;
+}
 
 /* ===== BOTONES ===== */
 .btn {
@@ -93,9 +142,16 @@ body {
   cursor: pointer;
   transition: all 0.15s ease;
 }
-.btn-primary { background: var(--color-rojo); color: white; }
+/* El botón primario termina en punta, como el borde de una etiqueta colgante */
+.btn-primary {
+  background: var(--color-rojo);
+  color: white;
+  border-radius: 8px 0 0 8px;
+  clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 50%, calc(100% - 12px) 100%, 0 100%);
+  padding-right: 28px;
+}
 .btn-primary:hover { background: var(--color-rojo-hover); }
-.btn-secundario { background: var(--color-blanco); color: var(--color-negro); border: 1px solid var(--color-borde); }
+.btn-secundario { background: var(--color-blanco); color: var(--color-negro); border: 1px solid var(--color-borde); border-radius: var(--radio); }
 .btn-secundario:hover { background: #f5f5f5; }
 
 /* ===== TARJETAS / CARDS ===== */
@@ -113,15 +169,27 @@ body {
   gap: 16px;
   margin-bottom: 24px;
 }
+/* Stat-cards con esquina cortada en diagonal + puntito, como la esquina
+   perforada de una etiqueta de precio colgante */
 .stat-card {
+  position: relative;
   background: var(--color-blanco);
-  border-radius: var(--radio);
   box-shadow: var(--sombra);
-  padding: 18px 20px;
-  border-left: 4px solid var(--color-rojo);
+  padding: 18px 24px 18px 20px;
+  border-top: 3px solid var(--color-rojo);
+  border-radius: 0 0 var(--radio) var(--radio);
+  clip-path: polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 0 100%);
+}
+.stat-card::after {
+  content: '';
+  position: absolute;
+  top: 6px; right: 6px;
+  width: 4px; height: 4px;
+  background: var(--color-crema);
+  border-radius: 50%;
 }
 .stat-card .label { font-size: 12.5px; color: var(--color-gris-texto); text-transform: uppercase; letter-spacing: 0.5px; }
-.stat-card .valor { font-size: 26px; font-weight: 700; margin-top: 4px; }
+.stat-card .valor { font-family: var(--font-mono); font-size: 25px; font-weight: 700; margin-top: 4px; }
 
 /* ===== TABLAS ===== */
 table {
@@ -132,14 +200,25 @@ table {
   overflow: hidden;
 }
 thead { background: var(--color-negro); color: var(--color-crema); }
+th {
+  font-family: var(--font-display);
+  letter-spacing: 0.8px;
+  font-size: 13.5px;
+  font-weight: 400;
+}
 th, td { padding: 12px 14px; text-align: left; font-size: 13.5px; }
 tbody tr { border-bottom: 1px solid var(--color-borde); }
 tbody tr:hover { background: #faf7f0; }
+
+/* Última columna de las tablas de datos (en tus tablas actuales es el Importe/monto):
+   números tabulares en monoespaciada, sensación de ticket de caja registradora */
+td:last-child { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 
 .badge { padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
 .badge-ok { background: #e2f5e5; color: #1e7a34; }
 .badge-pendiente { background: #fdeeee; color: var(--color-rojo); }
 .badge-alerta { background: #fff4e0; color: #b56b00; }
+.badge-destacado { background: var(--color-dorado-suave); color: #8a6d10; }
 
 /* ===== FORMS ===== */
 input, select, textarea {
@@ -149,6 +228,7 @@ input, select, textarea {
   border-radius: 8px;
   font-size: 14px;
   background: var(--color-blanco);
+  font-family: var(--font-body);
 }
 input:focus, select:focus, textarea:focus { outline: none; border-color: var(--color-rojo); }
 label { font-size: 13px; font-weight: 600; color: var(--color-gris-texto); display: block; margin-bottom: 6px; }
@@ -183,12 +263,12 @@ label { font-size: 13px; font-weight: 600; color: var(--color-gris-texto); displ
 }
 .busqueda-resultado:hover { background: #faf7f0; }
 
-/* El sidebar necesita ocupar toda la altura para que "Cerrar sesión" quede abajo */
-/* (el sidebar ya queda fijo con position:sticky definido arriba) */
-
 /* ===== UTILS ===== */
 .oculto { display: none !important; }
 .loading { text-align: center; padding: 40px; color: var(--color-gris-texto); }
+/* Clase opcional para usar en app.js donde quieras forzar look de ticket
+   (ej. montos individuales dentro de las filas de Ventas que no son <table>) */
+.mono-num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 
 /* =====================================================================
    MÓVIL (Android / iPhone) — misma paleta y componentes, layout distinto:
@@ -253,10 +333,16 @@ label { font-size: 13px; font-weight: 600; color: var(--color-gris-texto); displ
   .nav-item .nav-texto { display: none; }
   .nav-item .nav-texto-corto { display: block; line-height: 1.1; font-weight: 600; }
 
+  /* En la barra inferior no cabe la muesca de "etiqueta" del desktop: se vuelve
+     una línea superior simple, más limpia para una franja horizontal angosta */
   .nav-item.activo {
     border-left-color: transparent;
     border-top-color: var(--color-rojo);
     background: rgba(232,18,28,0.15);
+  }
+  .nav-item.activo::before,
+  .nav-item.activo::after {
+    content: none;
   }
 
   .main-content {
@@ -265,11 +351,11 @@ label { font-size: 13px; font-weight: 600; color: var(--color-gris-texto); displ
   }
 
   .main-header { margin-bottom: 18px; }
-  .main-header h1 { font-size: 19px; }
+  .main-header h1 { font-size: 22px; }
 
   .stats-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
-  .stat-card { padding: 14px 16px; }
-  .stat-card .valor { font-size: 20px; }
+  .stat-card { padding: 14px 18px 14px 14px; }
+  .stat-card .valor { font-size: 19px; }
 
   .card { padding: 14px; }
 
